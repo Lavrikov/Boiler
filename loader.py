@@ -11,18 +11,22 @@ def load_video(filename, center_crop=(256, 256)):
     :param filename: путь к файлу
     :param center_crop: параметры кропа - вырезание центра видео
     """
-    (height, width) = center_crop
+    (crop_height, crop_width) = center_crop
 
     cap = cv2.VideoCapture(filename)
+
+    vid_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    vid_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    y = max((vid_height - crop_height) // 2, 0)
+    x = max((vid_width - crop_width) // 2, 0)
+    h = min(y + crop_height, vid_height)
+    w = min(x + crop_width, vid_width)
 
     success = cap.isOpened()
     while success:
         success, frame = cap.read()
         if frame is not None:
-            y = max((len(frame) - height) // 2, 0)
-            x = max((len(frame[0]) - width) // 2, 0)
-            h = min(y + height, len(frame))
-            w = min(x + width, len(frame[0]))
             yield frame[y:h, x:w, 0]/256
 
     cap.release()
@@ -48,5 +52,4 @@ if __name__ == "__main__":
     videos = load_folder('./train')
     for name in videos:
         for frame in videos[name]:
-            print(f"{len(frame)}x{len(frame[0])}")
             print(frame)
