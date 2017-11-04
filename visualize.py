@@ -12,20 +12,17 @@ def show_frame(frame, heat_transfer):
 
 if __name__ == "__main__":
     face_dataset = FramesDataset('./train/annotations.csv', './train')
-    help(face_dataset)
     fig = plt.figure()
 
-    num_samples = 1
+    SummResult = torch.LongTensor(48, 340) # создаем тенозор для хранения суммы картинок
+    SummResult.zero_()#заполняем его нулями
+
+    num_samples = 12000
     samples_indexes = np.random.randint(len(face_dataset), size=num_samples)
+    samples_indexes=[i for i in range(0,num_samples)] #список с последовательной нумерацией
+    print(samples_indexes)
     for i, index in enumerate(samples_indexes):
         sample = face_dataset[index]
-
-        print(i, sample['frame'].shape, sample['heat_transfer'].shape)
-
-        ax = plt.subplot(num_samples//3+1, 3, i + 1)
-        plt.tight_layout()
-        ax.set_title('Sample #{}'.format(index))
-        ax.axis('off')
 
         #тензор для суммы всех картинок
         AllPicTensor=torch.LongTensor()
@@ -36,21 +33,37 @@ if __name__ == "__main__":
         #передаем картинку в виде numpyArray в map структуру которую может показывать функция show
         sample['frame']=LaplacianFilterSample
 
-        #показываем картинку на экране из map структуры
-        show_frame(**sample)
-
         #делаем Тензон из NumpyArray что бы не было ошибок тип данных массива должен совпадать с типом данных тензора, сам он не меняет тип
         TensorSample=torch.ShortTensor(LaplacianFilterSample)
 
         #преврящаем тип данных в тенозоре в Long т.к. для сложения всех матриц Short не хватит, а разные типы складывать нельзя в pytorch
-        TensorSample.long()
-
+        TensorSample=TensorSample.long()
         #помещаем тензор в память видеокарты
         TensorSample = TensorSample.cuda()
-
+        SummResult = SummResult.cuda()
         #проверяем находится ли тензор в памяти видеокарты, (выводит True если тензор в видеопамять)
         print(TensorSample.is_cuda)
+        print(SummResult.is_cuda)
+        print(i)
+
+        #складываем тензоры
+        SummResult.add_(TensorSample)
+
+        #переносим суммарный тензор в оперативную память иначе не работает перевод в numpy array
+        SummResult=SummResult.cpu()
+
+
 
         if i == num_samples-1:
+            print(i, sample['frame'].shape, sample['heat_transfer'].shape)
+
+            ax = plt.subplot(11 // 3 + 1, 3, 1 + 1) #здесь устанавливаются координаты
+            plt.tight_layout()
+            ax.set_title('Sample #{}'.format(index))
+            ax.axis('off')
+
+            # показываем картинку на экране из map структуры
+            sample['frame'] = SummResult.numpy()
+            show_frame(**sample)
             plt.show()
             break
