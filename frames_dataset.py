@@ -36,6 +36,7 @@ class FramesDataset(Dataset):
     @staticmethod
     def get_frames_count(root_dir, filename):
         filepath = os.path.join(root_dir, filename)
+        print(filepath)
         cap = cv2.VideoCapture(filepath)
         if cap.isOpened():
             return int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -76,7 +77,10 @@ class FramesDataset(Dataset):
         return sample
 
 
+
 if __name__ == "__main__":
     frames_dataset = FramesDataset('./train/annotations.csv', './train')
-    print(frames_dataset.__getitem__(1000))
+    print(frames_dataset.__getitem__(360000))
+
+
 
