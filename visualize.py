@@ -16,6 +16,10 @@ if __name__ == "__main__":
 
     SummResult = torch.LongTensor(48, 340) # создаем тенозор для хранения суммы картинок
     SummResult.zero_()#заполняем его нулями
+    # помещаем тензор в память видеокарты
+    SummResult = SummResult.cuda()
+    # проверяем находится ли тензор в памяти видеокарты, (выводит True если тензор в видеопамять)
+    print(str(SummResult.is_cuda)+"SummResult is Cuda?")
 
     num_samples = 12000
     samples_indexes = np.random.randint(len(face_dataset), size=num_samples)
@@ -31,7 +35,7 @@ if __name__ == "__main__":
         LaplacianFilterSample = cv2.Laplacian(sample['frame'], 3)
 
         #передаем картинку в виде numpyArray в map структуру которую может показывать функция show
-        sample['frame']=LaplacianFilterSample
+        #sample['frame']=LaplacianFilterSample
 
         #делаем Тензон из NumpyArray что бы не было ошибок тип данных массива должен совпадать с типом данных тензора, сам он не меняет тип
         TensorSample=torch.ShortTensor(LaplacianFilterSample)
@@ -40,19 +44,12 @@ if __name__ == "__main__":
         TensorSample=TensorSample.long()
         #помещаем тензор в память видеокарты
         TensorSample = TensorSample.cuda()
-        SummResult = SummResult.cuda()
         #проверяем находится ли тензор в памяти видеокарты, (выводит True если тензор в видеопамять)
         print(TensorSample.is_cuda)
-        print(SummResult.is_cuda)
         print(i)
 
         #складываем тензоры
         SummResult.add_(TensorSample)
-
-        #переносим суммарный тензор в оперативную память иначе не работает перевод в numpy array
-        SummResult=SummResult.cpu()
-
-
 
         if i == num_samples-1:
             print(i, sample['frame'].shape, sample['heat_transfer'].shape)
@@ -61,6 +58,13 @@ if __name__ == "__main__":
             plt.tight_layout()
             ax.set_title('Sample #{}'.format(index))
             ax.axis('off')
+
+            #Делим на число кадров
+            SummResult=SummResult/num_samples
+
+            # переносим суммарный тензор в оперативную память иначе не работает перевод в numpy array
+            SummResult = SummResult.cpu()
+            print(SummResult)
 
             # показываем картинку на экране из map структуры
             sample['frame'] = SummResult.numpy()
