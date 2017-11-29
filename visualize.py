@@ -18,7 +18,7 @@ if __name__ == "__main__":
     SummResult.zero_()#заполняем его нулями
 
     num_samples_from=13*12000
-    num_samples = 26*12000
+    num_samples = 15*12000
     samples_indexes=[i for i in range(num_samples_from,num_samples)] #список с последовательной нумерацией
     print(samples_indexes)
     for i, index in enumerate(samples_indexes):
@@ -37,7 +37,7 @@ if __name__ == "__main__":
         TensorSample=TensorSample.long()
         print(index)
 
-        #складываем тензоры
+        #складываем тензоры, умножаем на 1000 для выделения границ в общей итоговой сумме
         SummResult.add_(TensorSample*1000)
 
         if index == num_samples-1:
