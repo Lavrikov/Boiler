@@ -5,13 +5,20 @@ from frames_dataset import FramesDataset
 from picture_transformation import boundaries_detect_laplacian
 
 
-def boundaries_summ_conv(face_dataset):
-    SummResult = torch.LongTensor(48, 340)  # create a tenor for storing the sum of pictures
+def boundaries_summ_conv(face_dataset, num_samples_from, num_samples_to, multiply):
+    """
+    :param face_dataset: the video dataset like a group of a pictures
+    :param num_samples_from: number of picture to start calculation
+    :param num_samples_to: number of picture to end calculation
+    :param multiply: coefficient of multiplication boundaries bright
+    """
+
+    sample = face_dataset[1]
+    SummResult = torch.from_numpy(sample['frame'])
+    SummResult = SummResult.long()
     SummResult.zero_()  # pull it by zero
 
-    num_samples_from = 13 * 12000
-    num_samples = 13 * 12000 + 5
-    samples_indexes = [i for i in range(num_samples_from, num_samples)]  # список с последовательной нумерацией
+    samples_indexes = [i for i in range(num_samples_from, num_samples_to)]  # A list contains all requires numbers
     print(samples_indexes)
     for i, index in enumerate(samples_indexes):
         sample = face_dataset[index]
@@ -26,6 +33,6 @@ def boundaries_summ_conv(face_dataset):
         print(index)
 
         # multiply by 1000 to allocate borders in the total total amount
-        SummResult.add_(TensorSample * 1000)
+        SummResult.add_(TensorSample * multiply)
         break
     return SummResult
