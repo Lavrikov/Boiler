@@ -1,48 +1,46 @@
 import matplotlib.pyplot as plt
 import torch
+import numpy
+from torch.autograd import Variable
 
 from frames_dataset import FramesDataset
 from picture_transformation import boundaries_detect_laplacian
 
 
-def boundaries_summ_conv(face_dataset, num_samples_from, num_samples_to, multiply):
+def forward(face_dataset, num_samples_from, num_samples_to, multiply):
     """
     :param face_dataset: the video dataset like a group of a pictures
     :param num_samples_from: number of picture to start calculation
     :param num_samples_to: number of picture to end calculation
     :param multiply: coefficient of multiplication boundaries bright
     """
-
-    sample = face_dataset[1]
-    SummResult = torch.from_numpy(sample['frame'])
-    SummResult = SummResult.long()
-    SummResult.zero_()  # pull it by zero
-
+    SummResult=Variable(torch.ByteTensor(num_samples_to, 340, 48), requires_grad=True)
     samples_indexes = [i for i in range(num_samples_from, num_samples_to)]  # A list contains all requires numbers
     print(samples_indexes)
     for i, index in enumerate(samples_indexes):
         sample = face_dataset[index]
+        numpy.copyto(face_dataset[index]['frame'], numpy.uint8(boundaries_detect_laplacian(sample)))
+        SummResult[i]=Variable(torch.from_numpy(numpy.uint8(boundaries_detect_laplacian(sample))))
+    return face_dataset
 
-        BinareFilterSample = boundaries_detect_laplacian(sample)
-
-        # do Tenson from NumpyArray that there were no errors the data type of the array must match the data type of the tensor, it does not change the type by himself
-        TensorSample = torch.from_numpy(BinareFilterSample)
-
-        # We change the data type in the tensor to the Long type because to add all the matrices Short is not enough, and different types can not be added in pytorch
-        TensorSample = TensorSample.long()
-        print(index)
-
-        # multiply by 1000 to allocate borders in the total total amount
-        SummResult.add_(TensorSample * multiply)
-        break
-    return SummResult
 
 if __name__ == "__main__":
     #here i load the video dataset like a group of a pictures
     face_dataset = FramesDataset('./train/annotations.csv', './train')
+    #here i init NN
+    #10 number of features input, 20 number of features hidden layer ,2- number or recurent layers
+    fer=torch.from_numpy(face_dataset[1]['frame'])
+    print(type(fer))
+    rnn = torch.nn.LSTM(10, 20, 2)
 
+    input = Variable(torch.randn(5, 3, 10))
+    h0 = Variable(torch.randn(2, 3, 20))
+    c0 = Variable(torch.randn(2, 3, 20))
+    output, hn = rnn(input, (h0, c0))
+
+    forward(face_dataset, 12000, 12200, 1)
     # here i calculate statistics of bubble boundaries appeariance at every coordinate of image with multiplication by 1000
-    SummResult=boundaries_summ_conv(face_dataset,63 * 12000, 64 * 12000, 1000)
+
 
     # here i show results
     sample=face_dataset[1]
@@ -52,9 +50,8 @@ if __name__ == "__main__":
     plt.tight_layout()
     ax.set_title('Sample #{}'.format(1))
     ax.axis('off')
-    print(SummResult)
+    print(output)
 
     # show the statistic matrix
-    sample['frame'] = SummResult.numpy()
-    plt.imshow(sample,'gray')
+    plt.imshow(face_dataset[12100]['frame'],'gray')
     plt.show()

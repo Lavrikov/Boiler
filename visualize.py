@@ -10,15 +10,15 @@ def show_frame(frame, heat_transfer):
 
 
 if __name__ == "__main__":
-    i=1
-    #load the video dataset like a group of a pictures
+    #here i load the video dataset like a group of a pictures
     face_dataset = FramesDataset('./train/annotations.csv', './train')
-    #calculate statistics of bubble boundaries appeariance at every coordinate of image with multiplication by 1000
-    SummResult=boundaries_summ_conv(face_dataset,13 * 12000, 13 * 12000 + 8, 1000)
 
-    sample=face_dataset[i]
+    # here i calculate statistics of bubble boundaries appeariance at every coordinate of image with multiplication by 1000
+    SummResult=boundaries_summ_conv(face_dataset,63 * 12000, 64 * 12000, 1000)
+
+    sample=face_dataset[1]
     fig = plt.figure()
-    print(i, sample['frame'].shape, sample['heat_transfer'].shape)
+    print(1, sample['frame'].shape, sample['heat_transfer'].shape)
     ax = plt.subplot(11 // 3 + 1, 3, 1 + 1) #coordinates
     plt.tight_layout()
     ax.set_title('Sample #{}'.format(1))
