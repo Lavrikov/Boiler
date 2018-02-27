@@ -11,7 +11,7 @@ def show_frame(frame, heat_transfer):
 
 if __name__ == "__main__":
     #here i load the video dataset like a group of a pictures
-    face_dataset = FramesDataset('./train/annotations.csv', './train')
+    face_dataset = FramesDataset('file:///media/aleksandr/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/aleksandr/Files/@Machine/Github/Boiler/train')
 
     # here i calculate statistics of bubble boundaries appeariance at every coordinate of image with multiplication by 1000
     SummResult=boundaries_summ_conv(face_dataset,63 * 12000, 64 * 12000, 1000)

@@ -79,7 +79,7 @@ class FramesDataset(Dataset):
 
 
 if __name__ == "__main__":
-    frames_dataset = FramesDataset('./train/annotations.csv', './train')
+    frames_dataset = FramesDataset('file:///media/aleksandr/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/aleksandr/Files/@Machine/Github/Boiler/train')
     print(frames_dataset.__getitem__(360000))
 
 
