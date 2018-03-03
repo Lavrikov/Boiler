@@ -68,42 +68,44 @@ def init_edge_feature_map_5x5():
     for k in range(72, 76):
         feature_map[k]=np.flip(feature_map[k-4],1)
 
-    # here i show feature_map
-    for i in range(0, 36):
-        # here i show results
-        ax = plt.subplot(6, 6, i+1)  # coordinates
-        plt.tight_layout()
-        ax.set_title(i)
-        ax.axis('off')
-        # print(SummResult)
-        # show the statistic matrix
-        plt.imshow(feature_map[i], 'gray')
+    test='false'
+    if test=='true':
+        # here i show feature_map
+        for i in range(0, 36):
+            # here i show results
+            ax = plt.subplot(6, 6, i+1)  # coordinates
+            plt.tight_layout()
+            ax.set_title(i)
+            ax.axis('off')
+            # print(SummResult)
+            # show the statistic matrix
+            plt.imshow(feature_map[i], 'gray')
 
-    plt.show()
-    plt.clf()
-    for i in range(36, 72):
-        # here i show results
-        ax = plt.subplot(6, 6, i+1-36)  # coordinates
-        plt.tight_layout()
-        ax.set_title(i)
-        ax.axis('off')
-        # print(SummResult)
-        # show the statistic matrix
-        plt.imshow(feature_map[i], 'gray')
+        plt.show()
+        plt.clf()
+        for i in range(36, 72):
+            # here i show results
+            ax = plt.subplot(6, 6, i+1-36)  # coordinates
+            plt.tight_layout()
+            ax.set_title(i)
+            ax.axis('off')
+            # print(SummResult)
+            # show the statistic matrix
+            plt.imshow(feature_map[i], 'gray')
 
-    plt.show()
+        plt.show()
 
-    plt.clf()
-    for i in range(72, 76):
-        # here i show results
-        ax = plt.subplot(6, 6, i+1-72)  # coordinates
-        plt.tight_layout()
-        ax.set_title(i)
-        ax.axis('off')
-        # print(SummResult)
-        # show the statistic matrix
-        plt.imshow(feature_map[i], 'gray')
+        plt.clf()
+        for i in range(72, 76):
+            # here i show results
+            ax = plt.subplot(6, 6, i+1-72)  # coordinates
+            plt.tight_layout()
+            ax.set_title(i)
+            ax.axis('off')
+            # print(SummResult)
+            # show the statistic matrix
+            plt.imshow(feature_map[i], 'gray')
 
-    plt.show()
+        plt.show()
 
     return feature_map
