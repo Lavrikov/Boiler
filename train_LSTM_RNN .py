@@ -137,7 +137,6 @@ if __name__ == "__main__":
 
     #here i load the video dataset like a group of a pictures
     face_dataset = FramesDataset('file:///media/aleksandr/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/aleksandr/Files/@Machine/Github/Boiler/train')
-
     #here i init feature map
     feature_map = init_edge_feature_map_5x5()
 
@@ -169,16 +168,19 @@ if __name__ == "__main__":
     # 3 argument - is one dimensional array contains all features from all part of picture- it is require convert 3 dimensional array to 1 dimension and put to this cell.
     # The structure of paramenters LSTM(lenght of array with features=big value, number of heatures in output can be lower and higer than in input- how mach i want, number of layer in recurent model)
     input = Variable(capture_feature(face_dataset, feature_map, 0, 10)[1])
-    target=Variable(torch.FloatTensor(1,1,1))
-    target.data[0,0,0]=float(face_dataset[63 * 12000]['heat_transfer'])
     # number of features input, number of features hidden layer ,2- number or recurent layers
-    rnn = torch.nn.LSTM(input.data.shape[2], 1, 1)
+    hidden_features=100
+    number_of_samples_lstm=1000
+    first_sample_lstm=63 * 12000
+    target=torch.FloatTensor(first_sample_lstm+number_of_samples_lstm)
+    rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, 1)
+    ln=torch.nn.Linear(100,1)
     #rnn.weight_ih_l0.data.fill_(1000)
     #rnn.weight_hh_l0.data.fill_(1000)
     optimizer = torch.optim.SGD(rnn.parameters(), lr=0.01, momentum=0.9)
-    h0 = Variable(torch.FloatTensor(1,1,1))
+    h0 = Variable(torch.FloatTensor(1,1,hidden_features))
     h0.data[0,0,0]=120000
-    c0 = Variable(torch.FloatTensor(1,1,1))
+    c0 = Variable(torch.FloatTensor(1,1,hidden_features))
     c0.data[0, 0, 0] = 120000
     output, (hn, cn) = rnn(input, (h0, c0))
     w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
@@ -191,20 +193,19 @@ if __name__ == "__main__":
     u_hf = w_hf.clone()
     u_hc = w_hc.clone()
     u_ho = w_ho.clone()
-    #cycle by all samples                                                                                                                                                                                   
-    for j in range(0, 1000):
-        sample_num=63 * 12000+j
-
+    for sample_num in range(first_sample_lstm, first_sample_lstm + number_of_samples_lstm):
+        target[sample_num] = float(face_dataset[sample_num]['heat_transfer'])
+    target=Variable(target)
+    print(target)
+    #cycle by all samples
+    for sample_num in range(first_sample_lstm, first_sample_lstm+number_of_samples_lstm):
         output, (hn, cn) = rnn(input)
         w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
         w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
-        #target = Variable(float(face_dataset[sample_num]['heat_transfer']))
-        loss = (output-target)
-        print(str(torch.sum(w_ii-u_ii).data[0])+'  '+str(torch.sum(w_if-u_if).data[0])+'  '+str(torch.sum(w_ic-u_ic).data[0])+'  '+str(torch.sum(w_io-u_io).data[0])+ '  '+ str(torch.sum(w_hi-u_hi).data[0])+'  '+str(torch.sum(w_hf-u_hf).data[0])+'  '+str(torch.sum(w_hc-u_hc).data[0])+'  '+str(torch.sum(w_ho-u_ho).data[0])+'  loss='+str(loss.data[0,0,0]) )
+        loss = (torch.sum(output)-target[sample_num])
+        print(str(torch.sum(w_ii-u_ii).data[0])+'  '+str(torch.sum(w_if-u_if).data[0])+'  '+str(torch.sum(w_ic-u_ic).data[0])+'  '+str(torch.sum(w_io-u_io).data[0])+ '  '+ str(torch.sum(w_hi-u_hi).data[0])+'  '+str(torch.sum(w_hf-u_hf).data[0])+'  '+str(torch.sum(w_hc-u_hc).data[0])+'  '+str(torch.sum(w_ho-u_ho).data[0])+'  loss='+str(loss.data[0]) )
         if (torch.sum(w_io-u_io).data[0])>0:
             input=Variable(capture_feature(face_dataset, feature_map, sample_num, 10)[1])
-        #print(loss)
-        #print(str(j)+'      '+ str(loss.data[0,0,0])+'      '+ str(torch.mean(w_ii.data))+'  '+ str(torch.mean(w_if.data))+'  '+ str(torch.mean(w_ic.data))+'  '+ str(torch.mean(w_io.data))+'       '+ str(torch.mean(w_hi.data))+'  '+ str(torch.mean(w_hf.data))+'  '+ str(torch.mean(w_hc.data))+'  '+ str(torch.mean(w_ho.data)))
         loss.backward()
         optimizer.step()
 
