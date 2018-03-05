@@ -167,12 +167,14 @@ if __name__ == "__main__":
     # 2 argument - is equal a number of batch - better to use 1
     # 3 argument - is one dimensional array contains all features from all part of picture- it is require convert 3 dimensional array to 1 dimension and put to this cell.
     # The structure of paramenters LSTM(lenght of array with features=big value, number of heatures in output can be lower and higer than in input- how mach i want, number of layer in recurent model)
-    input = Variable(capture_feature(face_dataset, feature_map, 0, 10)[1])
-    # number of features input, number of features hidden layer ,2- number or recurent layers
+
     hidden_features=100
-    number_of_samples_lstm=1000
-    first_sample_lstm=63 * 12000
+    number_of_samples_lstm=120000
+    first_sample_lstm=28*12000 #63 * 12000
+    error=numpy.zeros(shape=(number_of_samples_lstm), dtype='float32')
+    input = Variable(capture_feature(face_dataset, feature_map, 0, 10)[1])
     target=torch.FloatTensor(first_sample_lstm+number_of_samples_lstm)
+    # number of features input, number of features hidden layer ,2- number or recurent layers
     rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, 1)
     ln=torch.nn.Linear(100,1)
     #rnn.weight_ih_l0.data.fill_(1000)
@@ -195,19 +197,28 @@ if __name__ == "__main__":
     u_ho = w_ho.clone()
     for sample_num in range(first_sample_lstm, first_sample_lstm + number_of_samples_lstm):
         target[sample_num] = float(face_dataset[sample_num]['heat_transfer'])
+        #print(sample_num)
     target=Variable(target)
     print(target)
     #cycle by all samples
     for sample_num in range(first_sample_lstm, first_sample_lstm+number_of_samples_lstm):
         output, (hn, cn) = rnn(input)
+        output=ln(output)
         w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
         w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
-        loss = (torch.sum(output)-target[sample_num])
-        print(str(torch.sum(w_ii-u_ii).data[0])+'  '+str(torch.sum(w_if-u_if).data[0])+'  '+str(torch.sum(w_ic-u_ic).data[0])+'  '+str(torch.sum(w_io-u_io).data[0])+ '  '+ str(torch.sum(w_hi-u_hi).data[0])+'  '+str(torch.sum(w_hf-u_hf).data[0])+'  '+str(torch.sum(w_hc-u_hc).data[0])+'  '+str(torch.sum(w_ho-u_ho).data[0])+'  loss='+str(loss.data[0]) )
-        if (torch.sum(w_io-u_io).data[0])>0:
-            input=Variable(capture_feature(face_dataset, feature_map, sample_num, 10)[1])
+        loss = (torch.sum(output)-(target[sample_num]))
+        error[sample_num-first_sample_lstm]=loss.data[0]
+        input=Variable(capture_feature(face_dataset, feature_map, sample_num, 10)[1])
         loss.backward()
         optimizer.step()
+        ln.weight.data = ln.weight.data + ln.weight.grad.data*0.01#*(0.01*abs(loss.data[0])+0.01)
+        print(str(torch.sum(w_ii - u_ii).data[0]) + '  ' + str(torch.sum(w_if - u_if).data[0]) + '  ' + str(
+            torch.sum(w_ic - u_ic).data[0]) + '  ' + str(torch.sum(w_io - u_io).data[0]) + '  ' + str(
+            torch.sum(w_hi - u_hi).data[0]) + '  ' + str(torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
+            torch.sum(w_hc - u_hc).data[0]) + '  ' + str(torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
+            loss.data[0])+'  out'+str(torch.sum(output).data[0])+'   '+str(torch.mean(ln.weight).data[0])+'  '+ str(torch.mean(ln.weight.grad).data[0]))
+        ln.weight.grad.data.zero_()
+        optimizer.zero_grad()
 
     print(u_ii)
     print(u_if)
@@ -219,19 +230,11 @@ if __name__ == "__main__":
     print(u_hc)
     print(u_ho)
 
-
-
-
-    # here i show results
-    #sample=output
-    #fig = plt.figure()
-    #print(1, sample['frame'].shape, sample['heat_transfer'].shape)
-    #ax = plt.subplot(11 // 3 + 1, 3, 1 + 1) #coordinates
-    #plt.tight_layout()
-    #ax.set_title('Sample #{}'.format(1))
-    #ax.axis('off')
-    #print(output)
-
-    # show the statistic matrix
-    #plt.imshow(face_dataset[12100]['frame'],'gray')
-    #plt.show()
+    plt.clf()
+    plt.axes([0.3, 0.3, 0.5, 0.5])
+    # plt.title ('iteration error for ' + str(5) +' max eigenvalues and eigenvectors')
+    plt.plot(error, 'k:', label='1')
+    plt.xlabel('Iteration')
+    plt.ylabel('error')
+    plt.legend()
+    plt.show()
