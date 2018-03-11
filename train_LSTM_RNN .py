@@ -33,8 +33,7 @@ def capture_feature(face_dataset, feature_map, num_sample,from_layer, layers_by_
 
     #here i extract boundaries from sample, format binares picture
     BinareFilterSample = boundaries_detect_laplacian(face_dataset[num_sample])/255
-
-    if torch.cuda.is_available(): BinareFilterSample.cida()
+    if torch.cuda.is_available(): BinareFilterSample.cuda()
 
     #here i compare k features_pictures with layer on the sample picture with srtide 1 px
     for k in range(0,feature_amount):
@@ -47,7 +46,7 @@ def capture_feature(face_dataset, feature_map, num_sample,from_layer, layers_by_
                 y2=size_pic_Y-(i+from_layer)
                 local_feature = BinareFilterSample[y1:y2, x1:x2]
                 #here i multiply pixel by pixel,this operation save only nonzero elements at both matrix, futher i summ all nonzero elements
-                SummResult[k,i,j] = np.sum(local_feature*feature_map[k])+1
+                SummResult[k,i,j] = torch.sum(local_feature*feature_map[k])+1
                 one_dimension_result[0,0,k*i+j]=SummResult[k,i,j]+1
                 if SummResult[k,i,j]>4: heating_map[y1,x1]=heating_map[y1,x1]+SummResult[k,i,j]
     test='false'
@@ -91,39 +90,23 @@ def boundaries_summ_conv(face_dataset, num_samples_from, num_samples_to, multipl
         BinareFilterSample = boundaries_detect_laplacian(sample)
 
         # do Tenson from NumpyArray that there were no errors the data type of the array must match the data type of the tensor, it does not change the type by himself
-        TensorSample = torch.from_numpy(BinareFilterSample)
+        TensorSample =BinareFilterSample
 
         # We change the data type in the tensor to the Long type because to add all the matrices Short is not enough, and different types can not be added in pytorch
         TensorSample = TensorSample.long()
 
         # multiply by 1000 to allocate borders in the total total amount
         SummResult.add_(TensorSample)
-        print(SummResult)
+
         break
     return SummResult
-
-def forward(face_dataset, num_samples_from, num_samples_to, multiply):
-    """
-    :param face_dataset: the video dataset like a group of a pictures
-    :param num_samples_from: number of picture to start calculation
-    :param num_samples_to: number of picture to end calculation
-    :param multiply: coefficient of multiplication boundaries bright
-    """
-    SummResult=Variable(torch.ByteTensor(num_samples_to, 340, 48), requires_grad=True)
-    samples_indexes = [i for i in range(num_samples_from, num_samples_to)]  # A list contains all requires numbers
-    print(samples_indexes)
-    for i, index in enumerate(samples_indexes):
-        sample = face_dataset[index]
-        numpy.copyto(face_dataset[index]['frame'], numpy.uint8(boundaries_detect_laplacian(sample)))
-        SummResult[i]=Variable(torch.from_numpy(numpy.uint8(boundaries_detect_laplacian(sample))))
-    return face_dataset
-
 
 if __name__ == "__main__":
 
     #test run LSTM from manual example
     target=Variable(torch.FloatTensor(5,3,20))
     rnn = torch.nn.LSTM(10, 20, 2)
+    rnn.cuda()
     optimizer = torch.optim.SGD(rnn.parameters(), lr=0.01, momentum=0.9)
     input = Variable(torch.randn(5, 3, 10))
     h0 = Variable(torch.randn(2, 3, 20))
@@ -144,7 +127,8 @@ if __name__ == "__main__":
         #print(loss)
 
     #here i load the video dataset like a group of a pictures
-    face_dataset = FramesDataset('file:///media/aleksandr/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/aleksandr/Files/@Machine/Github/Boiler/train')
+    #face_dataset = FramesDataset('file:///media/aleksandr/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/aleksandr/Files/@Machine/Github/Boiler/train')
+    face_dataset = FramesDataset('./train/annotations.csv', './train')
     print('dataset is loaded')
     #here i init feature map and put it to the videomemory(.cuda)
     feature_map = init_edge_feature_map_5x5()

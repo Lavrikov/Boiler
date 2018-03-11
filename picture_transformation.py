@@ -9,8 +9,9 @@ def boundaries_detect_laplacian(sample):
 
     # zero all pixels that are not boundaries of objects
     ret, BinareFilterSample = cv2.threshold(LaplacianFilterSample, 25, 255, cv2.THRESH_BINARY)
+    BinareFilterSample=torch.from_numpy(BinareFilterSample)
 
-    return BinareFilterSample
+    return BinareFilterSample.byte()
 
 def init_edge_feature_map_5x5():
     #here i make features. features have shape of edges with horizontal line
