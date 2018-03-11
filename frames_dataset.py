@@ -53,6 +53,10 @@ class FramesDataset(Dataset):
         frame_index = idx - videofile['start_frame_index'].values[0]
 
         if filename not in self.videos_cache:
+
+            #here i add instuction to del all cached video exept new one
+            if len(self.videos_cache.keys()) > 0: del self.videos_cache[list(self.videos_cache.keys())[0]]
+
             self.videos_cache[filename] = dict()
 
             filepath = os.path.join(self.root_dir, filename)
@@ -63,7 +67,7 @@ class FramesDataset(Dataset):
             while success:
                 success, frame = cap.read()
                 if frame is not None:
-                    self.videos_cache[filename][i] = frame[:, :, 0]
+                    self.videos_cache[filename][i] = frame[-17:-1, :, 0]#-11:-1 desrease the vertical size of the image
                     i += 1
             cap.release()
 

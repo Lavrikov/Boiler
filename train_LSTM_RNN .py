@@ -8,12 +8,13 @@ from frames_dataset import FramesDataset
 from picture_transformation import boundaries_detect_laplacian
 from picture_transformation import init_edge_feature_map_5x5
 
-def capture_feature(face_dataset, feature_map, num_sample, layers_by_wall):
+def capture_feature(face_dataset, feature_map, num_sample,from_layer, layers_by_wall):
     """
     :param face_dataset: the video dataset like a group of a pictures
     :param feature_map: array of with feature map 1 dimension-number of temple, 2-3 dimentions size temple of picture
     :param num_samples: number of picture to calculation
-    :param number of layers by wall where i search features
+    :param layers_by_wall: number of layers by wall where i search features
+    :param from_layer: number of layers from edge of picture by Y
     """
     #final results matrix will has lower second two dimension(7x340) than initial pictures (48x340) because we use only part by the wall, first dimension is equal feature dimension of feature_map
     size_pic_X=face_dataset[num_sample]['frame'].shape[1]
@@ -21,22 +22,29 @@ def capture_feature(face_dataset, feature_map, num_sample, layers_by_wall):
     feature_size_X=feature_map.shape[2]
     feature_size_Y=feature_map.shape[1]
     feature_amount=feature_map.shape[0]
-    SummResult = torch.FloatTensor(feature_amount,layers_by_wall,size_pic_X).zero_()
-    one_dimension_result = torch.FloatTensor(1,1,feature_amount*size_pic_X*layers_by_wall).zero_()
+    SummResult = torch.FloatTensor(feature_amount,layers_by_wall-from_layer,size_pic_X).zero_()
+    one_dimension_result = torch.FloatTensor(1,1,feature_amount*size_pic_X*(layers_by_wall-from_layer)).zero_()
+
+    if torch.cuda.is_available():
+        SummResult.cuda()
+        one_dimension_result.cuda()
+
     heating_map= np.zeros(shape=(size_pic_Y, size_pic_X), dtype='int32')
 
     #here i extract boundaries from sample, format binares picture
     BinareFilterSample = boundaries_detect_laplacian(face_dataset[num_sample])/255
 
+    if torch.cuda.is_available(): BinareFilterSample.cida()
+
     #here i compare k features_pictures with layer on the sample picture with srtide 1 px
     for k in range(0,feature_amount):
-        for i in range(0,layers_by_wall):
+        for i in range(0,layers_by_wall-from_layer):
             for j in range(0, size_pic_X-feature_size_X):
                 #here i calculate coordinates clice of sample to compare with feature map templets
                 x1=j
                 x2=j+feature_size_X
-                y1=size_pic_Y-feature_size_Y-i
-                y2=size_pic_Y-i
+                y1=size_pic_Y-feature_size_Y-(i+from_layer)
+                y2=size_pic_Y-(i+from_layer)
                 local_feature = BinareFilterSample[y1:y2, x1:x2]
                 #here i multiply pixel by pixel,this operation save only nonzero elements at both matrix, futher i summ all nonzero elements
                 SummResult[k,i,j] = np.sum(local_feature*feature_map[k])+1
@@ -137,17 +145,21 @@ if __name__ == "__main__":
 
     #here i load the video dataset like a group of a pictures
     face_dataset = FramesDataset('file:///media/aleksandr/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/aleksandr/Files/@Machine/Github/Boiler/train')
-    #here i init feature map
+    print('dataset is loaded')
+    #here i init feature map and put it to the videomemory(.cuda)
     feature_map = init_edge_feature_map_5x5()
+    if torch.cuda.is_available():
+        feature_map.cuda()
 
-    test='false'
+
+    test='true'
     if test=='true':
         #visualize some data
         sample = face_dataset[1]
         fig = plt.figure()
         print(1, sample['frame'].shape, sample['heat_transfer'].shape)
         for j in range(0, 1):
-            for i in range(1, 13):
+            for i in range(1, 3):
                 # here i calculate statistics of bubble boundaries appeariance at every coordinate of image with multiplication by 1000
                 SummResult = boundaries_summ_conv(face_dataset, 63 * 12000 + i + j * 13, 63 * 12000 + i + 40 + j * 13, 1000)
                 # here i show results
@@ -172,7 +184,7 @@ if __name__ == "__main__":
     number_of_samples_lstm=120000
     first_sample_lstm=28*12000 #63 * 12000
     error=numpy.zeros(shape=(number_of_samples_lstm), dtype='float32')
-    input = Variable(capture_feature(face_dataset, feature_map, 0, 10)[1])
+    input = Variable(capture_feature(face_dataset, feature_map, 0,0, 10)[1])
     target=torch.FloatTensor(first_sample_lstm+number_of_samples_lstm)
     # number of features input, number of features hidden layer ,2- number or recurent layers
     rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, 1)
@@ -196,9 +208,11 @@ if __name__ == "__main__":
     u_hc = w_hc.clone()
     u_ho = w_ho.clone()
     for sample_num in range(first_sample_lstm, first_sample_lstm + number_of_samples_lstm):
+        print(sample_num)
         target[sample_num] = float(face_dataset[sample_num]['heat_transfer'])
         #print(sample_num)
     target=Variable(target)
+    print('heat transfer hedings are loaded')
     print(target)
     #cycle by all samples
     for sample_num in range(first_sample_lstm, first_sample_lstm+number_of_samples_lstm):
@@ -208,11 +222,11 @@ if __name__ == "__main__":
         w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
         loss = (torch.sum(output)-(target[sample_num]))
         error[sample_num-first_sample_lstm]=loss.data[0]
-        input=Variable(capture_feature(face_dataset, feature_map, sample_num, 10)[1])
+        input=Variable(capture_feature(face_dataset, feature_map, sample_num,0,10)[1])
         loss.backward()
         optimizer.step()
         ln.weight.data = ln.weight.data + ln.weight.grad.data*0.01#*(0.01*abs(loss.data[0])+0.01)
-        print(str(torch.sum(w_ii - u_ii).data[0]) + '  ' + str(torch.sum(w_if - u_if).data[0]) + '  ' + str(
+        print(str(sample_num-first_sample_lstm)+' '+str(torch.sum(w_ii - u_ii).data[0]) + '  ' + str(torch.sum(w_if - u_if).data[0]) + '  ' + str(
             torch.sum(w_ic - u_ic).data[0]) + '  ' + str(torch.sum(w_io - u_io).data[0]) + '  ' + str(
             torch.sum(w_hi - u_hi).data[0]) + '  ' + str(torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
             torch.sum(w_hc - u_hc).data[0]) + '  ' + str(torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(

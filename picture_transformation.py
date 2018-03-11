@@ -16,7 +16,7 @@ def init_edge_feature_map_5x5():
     #here i make features. features have shape of edges with horizontal line
     size_of_feature=7
     number_of_features=76
-    feature_map = np.zeros(shape=(number_of_features, size_of_feature, size_of_feature), dtype='int8')
+    feature_map = np.zeros(shape=(number_of_features, size_of_feature, size_of_feature), dtype='uint8')
     #edges for root have started to rising buble
     number_of_edges=20
     for k in range(0, 17):
@@ -108,4 +108,4 @@ def init_edge_feature_map_5x5():
 
         plt.show()
 
-    return feature_map
+    return torch.from_numpy(feature_map)
