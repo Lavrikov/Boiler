@@ -24,12 +24,14 @@ def capture_feature(face_dataset, feature_map, num_sample,from_layer, layers_by_
     feature_amount=feature_map.shape[0]
     SummResult = torch.FloatTensor(feature_amount,layers_by_wall-from_layer,size_pic_X).zero_()
     one_dimension_result = torch.FloatTensor(1,1,feature_amount*size_pic_X*(layers_by_wall-from_layer)).zero_()
+    m_pool_1d=torch.nn.MaxPool1d(15)
 
     if torch.cuda.is_available():
         SummResult.cuda()
         one_dimension_result.cuda()
 
-    heating_map= np.zeros(shape=(size_pic_Y, size_pic_X), dtype='int32')
+    heating_map_numpy= np.zeros(shape=(size_pic_Y, size_pic_X), dtype='int64')
+    heating_map=torch.from_numpy(heating_map_numpy)
 
     #here i extract boundaries from sample, format binares picture
     BinareFilterSample = boundaries_detect_laplacian(face_dataset[num_sample])/255
@@ -40,27 +42,31 @@ def capture_feature(face_dataset, feature_map, num_sample,from_layer, layers_by_
         for i in range(0,layers_by_wall-from_layer):
             for j in range(0, size_pic_X-feature_size_X):
                 #here i calculate coordinates clice of sample to compare with feature map templets
-                x1=j
-                x2=j+feature_size_X
-                y1=size_pic_Y-feature_size_Y-(i+from_layer)
-                y2=size_pic_Y-(i+from_layer)
-                local_feature = BinareFilterSample[y1:y2, x1:x2]
-                #here i multiply pixel by pixel,this operation save only nonzero elements at both matrix, futher i summ all nonzero elements
-                SummResult[k,i,j] = torch.sum(local_feature*feature_map[k])+1
-                one_dimension_result[0,0,k*i+j]=SummResult[k,i,j]+1
-                if SummResult[k,i,j]>4: heating_map[y1,x1]=heating_map[y1,x1]+SummResult[k,i,j]
+                #operand 'if' is used to decrease time calc, the k=0 it is a pure horizontal line on feature map, if at thix point (i,j) no horisontal line hence no another feature also
+                if (k==0) | (SummResult[0,i,j]>4):
+                    x1=j
+                    x2=j+feature_size_X
+                    y1=size_pic_Y-feature_size_Y-(i+from_layer)
+                    y2=size_pic_Y-(i+from_layer)
+                    local_feature = BinareFilterSample[y1:y2, x1:x2]
+                    #here i multiply pixel by pixel,this operation save only nonzero elements at both matrix, futher i summ all nonzero elements
+                    SummResult[k,i,j] = torch.sum(local_feature*feature_map[k])+1
+                    one_dimension_result[0,0,k*i+j]=SummResult[k,i,j]+1
+                    #if SummResult[k,i,j]>4: heating_map[y1:y2,x1:x2]=heating_map[y1:y2,x1:x2]+feature_map.long()[k]
+
+    one_dimension_result=m_pool_1d(one_dimension_result)
     test='false'
     if test=='true':
         # here i show results of feature_map impacting
         fig = plt.figure()
         ax = plt.subplot(2, 1, 1)  # coordinates
         plt.tight_layout()
-        ax.set_title('Sample #{}'+str(num_sample))
+        ax.set_title('Sample boundaries #{}'+str(num_sample))
         ax.axis('off')
         plt.imshow(BinareFilterSample, 'gray')
         ax = plt.subplot(2, 1, 2)  # coordinates
         plt.tight_layout()
-        ax.set_title('Sample #{}'+str(num_sample))
+        ax.set_title('Heating map'+str(num_sample))
         ax.axis('off')
         # print(SummResult)
         # show the statistic matrix
@@ -106,7 +112,6 @@ if __name__ == "__main__":
     #test run LSTM from manual example
     target=Variable(torch.FloatTensor(5,3,20))
     rnn = torch.nn.LSTM(10, 20, 2)
-    rnn.cuda()
     optimizer = torch.optim.SGD(rnn.parameters(), lr=0.01, momentum=0.9)
     input = Variable(torch.randn(5, 3, 10))
     h0 = Variable(torch.randn(2, 3, 20))
@@ -127,8 +132,8 @@ if __name__ == "__main__":
         #print(loss)
 
     #here i load the video dataset like a group of a pictures
-    #face_dataset = FramesDataset('file:///media/aleksandr/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/aleksandr/Files/@Machine/Github/Boiler/train')
-    face_dataset = FramesDataset('./train/annotations.csv', './train')
+    face_dataset = FramesDataset('file:///media/aleksandr/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/aleksandr/Files/@Machine/Github/Boiler/train')
+    #face_dataset = FramesDataset('./train/annotations.csv', './train')
     print('dataset is loaded')
     #here i init feature map and put it to the videomemory(.cuda)
     feature_map = init_edge_feature_map_5x5()
@@ -165,22 +170,27 @@ if __name__ == "__main__":
     # The structure of paramenters LSTM(lenght of array with features=big value, number of heatures in output can be lower and higer than in input- how mach i want, number of layer in recurent model)
 
     hidden_features=100
-    number_of_samples_lstm=120000
+    sequence_len=100
+    number_of_samples_lstm=1200
     first_sample_lstm=28*12000 #63 * 12000
     error=numpy.zeros(shape=(number_of_samples_lstm), dtype='float32')
-    input = Variable(capture_feature(face_dataset, feature_map, 0,0, 10)[1])
+    input = (capture_feature(face_dataset, feature_map, 0,0, 10)[1])
+    print(input)
     target=torch.FloatTensor(first_sample_lstm+number_of_samples_lstm)
     # number of features input, number of features hidden layer ,2- number or recurent layers
     rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, 1)
+    print(input.data.shape)
+    input_captured=Variable(torch.FloatTensor(number_of_samples_lstm,1,1,input.data.shape[2]))#tensor for repead using of captured feature
     ln=torch.nn.Linear(100,1)
     #rnn.weight_ih_l0.data.fill_(1000)
     #rnn.weight_hh_l0.data.fill_(1000)
     optimizer = torch.optim.SGD(rnn.parameters(), lr=0.01, momentum=0.9)
-    h0 = Variable(torch.FloatTensor(1,1,hidden_features))
+    h0 = torch.autograd.Variable(torch.FloatTensor(1,1,hidden_features))
     h0.data[0,0,0]=120000
-    c0 = Variable(torch.FloatTensor(1,1,hidden_features))
+    c0 = torch.autograd.Variable(torch.FloatTensor(1,1,hidden_features))
     c0.data[0, 0, 0] = 120000
     output, (hn, cn) = rnn(input, (h0, c0))
+
     w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
     w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
     u_ii = w_ii.clone()
@@ -191,6 +201,7 @@ if __name__ == "__main__":
     u_hf = w_hf.clone()
     u_hc = w_hc.clone()
     u_ho = w_ho.clone()
+
     for sample_num in range(first_sample_lstm, first_sample_lstm + number_of_samples_lstm):
         print(sample_num)
         target[sample_num] = float(face_dataset[sample_num]['heat_transfer'])
@@ -198,15 +209,18 @@ if __name__ == "__main__":
     target=Variable(target)
     print('heat transfer hedings are loaded')
     print(target)
+
     #cycle by all samples
     for sample_num in range(first_sample_lstm, first_sample_lstm+number_of_samples_lstm):
+
         output, (hn, cn) = rnn(input)
         output=ln(output)
         w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
         w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
         loss = (torch.sum(output)-(target[sample_num]))
         error[sample_num-first_sample_lstm]=loss.data[0]
-        input=Variable(capture_feature(face_dataset, feature_map, sample_num,0,10)[1])
+        input=(capture_feature(face_dataset, feature_map, sample_num,0,10)[1])
+        input_captured[sample_num-first_sample_lstm]=input
         loss.backward()
         optimizer.step()
         ln.weight.data = ln.weight.data + ln.weight.grad.data*0.01#*(0.01*abs(loss.data[0])+0.01)
@@ -218,11 +232,35 @@ if __name__ == "__main__":
         ln.weight.grad.data.zero_()
         optimizer.zero_grad()
 
+
+    # repead cycle by all samples
+    for repead in range(0,10):
+        for sample_num in range(first_sample_lstm, first_sample_lstm + number_of_samples_lstm):
+            output, (hn, cn) = rnn(input)
+            output = ln(output)
+            w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
+            w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
+            loss = (torch.sum(output) - (target[sample_num]))
+            error[sample_num - first_sample_lstm] = loss.data[0]
+            input = input_captured[sample_num-first_sample_lstm]
+            loss.backward()
+            optimizer.step()
+            ln.weight.data = ln.weight.data + ln.weight.grad.data * 0.01  # *(0.01*abs(loss.data[0])+0.01)
+            print(str(sample_num - first_sample_lstm) + ' ' + str(torch.sum(w_ii - u_ii).data[0]) + '  ' + str(
+                torch.sum(w_if - u_if).data[0]) + '  ' + str(
+                torch.sum(w_ic - u_ic).data[0]) + '  ' + str(torch.sum(w_io - u_io).data[0]) + '  ' + str(
+                torch.sum(w_hi - u_hi).data[0]) + '  ' + str(torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
+                torch.sum(w_hc - u_hc).data[0]) + '  ' + str(torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
+                loss.data[0]) + '  out' + str(torch.sum(output).data[0]) + '   ' + str(
+                torch.mean(ln.weight).data[0]) + '  ' + str(torch.mean(ln.weight.grad).data[0]))
+            ln.weight.grad.data.zero_()
+            optimizer.zero_grad()
+
     print(u_ii)
     print(u_if)
     print(u_ic)
     print(u_io)
-    print('max io '+str(torch.max(u_io))+'min io '+str(torch.min(u_io)))
+    print('max io ' + str(torch.max(u_io)) + 'min io ' + str(torch.min(u_io)))
     print(u_hi)
     print(u_hf)
     print(u_hc)
