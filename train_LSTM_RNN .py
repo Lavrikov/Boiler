@@ -178,9 +178,9 @@ if __name__ == "__main__":
 
     hidden_features=100
     sequence_len=100
-    number_of_samples_lstm=1200
+    number_of_samples_lstm=120000
     first_sample_lstm=28*12000 #63 * 12000
-    error=numpy.zeros(shape=(number_of_samples_lstm), dtype='float32')
+    error=numpy.zeros(shape=(math.floor(number_of_samples_lstm/sequence_len)), dtype='float32')
     input = (capture_feature(face_dataset, feature_map, first_sample_lstm, first_sample_lstm+sequence_len, 0, 10)[1])
     print(input)
     target=torch.FloatTensor(first_sample_lstm+number_of_samples_lstm)
@@ -189,7 +189,6 @@ if __name__ == "__main__":
     rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, 1)
     print(input.data.shape)
     input_captured=Variable(torch.FloatTensor(math.floor(number_of_samples_lstm/sequence_len), sequence_len, 1, input.data.shape[2]))#tensor for repead using of captured feature
-    ln=torch.nn.Linear(100,1)
     #rnn.weight_ih_l0.data.fill_(1000)
     #rnn.weight_hh_l0.data.fill_(1000)
     optimizer = torch.optim.SGD(rnn.parameters(), lr=0.01, momentum=0.9)
@@ -225,20 +224,17 @@ if __name__ == "__main__":
         input_captured[sequence_num] = input
 
         output, (hn, cn) = rnn(input)
-        output=ln(output)
         w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
         w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
         loss = (torch.sum(output)-(target[sample_num]))
         error[sequence_num]=loss.data[0]
         loss.backward()
         optimizer.step()
-        ln.weight.data = ln.weight.data + ln.weight.grad.data*0.01#*(0.01*abs(loss.data[0])+0.01)
         print(str(first_sample_lstm+sequence_num*sequence_len)+'-'+ str(first_sample_lstm+(sequence_num+1)*sequence_len)+' '+str("%.4f" %torch.sum(w_ii - u_ii).data[0]) + '  ' + str("%.4f" %torch.sum(w_if - u_if).data[0]) + '  ' + str(
             "%.4f" %torch.sum(w_ic - u_ic).data[0]) + '  ' + str("%.4f" %torch.sum(w_io - u_io).data[0]) + '  ' + str(
             "%.4f" %torch.sum(w_hi - u_hi).data[0]) + '  ' + str("%.4f" %torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
             "%.4f" %torch.sum(w_hc - u_hc).data[0]) + '  ' + str("%.4f" %torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
-            "%.4f" %loss.data[0])+'  out'+str("%.4f" %torch.sum(output).data[0])+'   '+str("%.4f" %torch.mean(ln.weight).data[0])+'  '+ str("%.4f" %torch.mean(ln.weight.grad).data[0]))
-        ln.weight.grad.data.zero_()
+            "%.4f" %loss.data[0])+'  out'+str("%.4f" %torch.sum(output).data[0])+'   ')
         optimizer.zero_grad()
 
 
@@ -248,14 +244,12 @@ if __name__ == "__main__":
 
             input = input_captured[sequence_num]
             output, (hn, cn) = rnn(input)
-            output = ln(output)
             w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
             w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
             loss = (torch.sum(output) - (target[sample_num]))
             error[sequence_num] = loss.data[0]
             loss.backward()
             optimizer.step()
-            ln.weight.data = ln.weight.data + ln.weight.grad.data * 0.01  # *(0.01*abs(loss.data[0])+0.01)
             print(str(first_sample_lstm + sequence_num * sequence_len) + '-' + str(
                 first_sample_lstm + (sequence_num + 1) * sequence_len) + ' ' + str(
                 "%.4f" % torch.sum(w_ii - u_ii).data[0]) + '  ' + str(
@@ -266,9 +260,7 @@ if __name__ == "__main__":
                 "%.4f" % torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_hc - u_hc).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
-                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.sum(output).data[0]) + '   ' + str(
-                "%.4f" % torch.mean(ln.weight).data[0]) + '  ' + str("%.4f" % torch.mean(ln.weight.grad).data[0]))
-            ln.weight.grad.data.zero_()
+                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.sum(output).data[0]) + '   ' )
             optimizer.zero_grad()
 
     print(u_ii)
