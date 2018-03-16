@@ -3,56 +3,63 @@ import torch
 import numpy
 from torch.autograd import Variable
 import numpy as np
+import math
 
 from frames_dataset import FramesDataset
 from picture_transformation import boundaries_detect_laplacian
 from picture_transformation import init_edge_feature_map_5x5
 
-def capture_feature(face_dataset, feature_map, num_sample,from_layer, layers_by_wall):
+def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, from_layer, layers_by_wall):
     """
     :param face_dataset: the video dataset like a group of a pictures
     :param feature_map: array of with feature map 1 dimension-number of temple, 2-3 dimentions size temple of picture
-    :param num_samples: number of picture to calculation
+    :param num_samples_from: number of picture to calculation sequence of pictures
+    :param num_samples_to: number of picture to calculation sequence of pictures
     :param layers_by_wall: number of layers by wall where i search features
     :param from_layer: number of layers from edge of picture by Y
     """
     #final results matrix will has lower second two dimension(7x340) than initial pictures (48x340) because we use only part by the wall, first dimension is equal feature dimension of feature_map
-    size_pic_X=face_dataset[num_sample]['frame'].shape[1]
-    size_pic_Y=face_dataset[num_sample]['frame'].shape[0]
-    feature_size_X=feature_map.shape[2]
-    feature_size_Y=feature_map.shape[1]
-    feature_amount=feature_map.shape[0]
-    SummResult = torch.FloatTensor(feature_amount,layers_by_wall-from_layer,size_pic_X).zero_()
-    one_dimension_result = torch.FloatTensor(1,1,feature_amount*size_pic_X*(layers_by_wall-from_layer)).zero_()
-    m_pool_1d=torch.nn.MaxPool1d(15)
+    m_pool_1d = torch.nn.MaxPool1d(15)
+    size_pic_X = face_dataset[num_sample_from]['frame'].shape[1]
+    size_pic_Y = face_dataset[num_sample_from]['frame'].shape[0]
+    feature_size_X = feature_map.shape[2]
+    feature_size_Y = feature_map.shape[1]
+    feature_amount = feature_map.shape[0]
+    SummResult = torch.FloatTensor(feature_amount, layers_by_wall - from_layer, size_pic_X).zero_()
+    one_dimension_result = torch.FloatTensor(num_sample_to-num_sample_from, 1, feature_amount * size_pic_X * (layers_by_wall - from_layer)).zero_()
+    heating_map_numpy = np.zeros(shape=(size_pic_Y, size_pic_X), dtype='int64')
+    heating_map = torch.from_numpy(heating_map_numpy)
 
-    if torch.cuda.is_available():
-        SummResult.cuda()
-        one_dimension_result.cuda()
+    for num_sample_in in range(num_sample_from,num_sample_to):
 
-    heating_map_numpy= np.zeros(shape=(size_pic_Y, size_pic_X), dtype='int64')
-    heating_map=torch.from_numpy(heating_map_numpy)
 
-    #here i extract boundaries from sample, format binares picture
-    BinareFilterSample = boundaries_detect_laplacian(face_dataset[num_sample])/255
-    if torch.cuda.is_available(): BinareFilterSample.cuda()
+        if torch.cuda.is_available():
+            SummResult.cuda()
+            one_dimension_result.cuda()
 
-    #here i compare k features_pictures with layer on the sample picture with srtide 1 px
-    for k in range(0,feature_amount):
-        for i in range(0,layers_by_wall-from_layer):
-            for j in range(0, size_pic_X-feature_size_X):
-                #here i calculate coordinates clice of sample to compare with feature map templets
-                #operand 'if' is used to decrease time calc, the k=0 it is a pure horizontal line on feature map, if at thix point (i,j) no horisontal line hence no another feature also
-                if (k==0) | (SummResult[0,i,j]>4):
-                    x1=j
-                    x2=j+feature_size_X
-                    y1=size_pic_Y-feature_size_Y-(i+from_layer)
-                    y2=size_pic_Y-(i+from_layer)
-                    local_feature = BinareFilterSample[y1:y2, x1:x2]
-                    #here i multiply pixel by pixel,this operation save only nonzero elements at both matrix, futher i summ all nonzero elements
-                    SummResult[k,i,j] = torch.sum(local_feature*feature_map[k])+1
-                    one_dimension_result[0,0,k*i+j]=SummResult[k,i,j]+1
-                    #if SummResult[k,i,j]>4: heating_map[y1:y2,x1:x2]=heating_map[y1:y2,x1:x2]+feature_map.long()[k]
+        SummResult.zero_()
+
+        #here i extract boundaries from sample, format binares picture
+        BinareFilterSample = boundaries_detect_laplacian(face_dataset[num_sample_in])/255
+        if torch.cuda.is_available(): BinareFilterSample.cuda()
+
+        #here i compare k features_pictures with layer on the sample picture with srtide 1 px
+        for k in range(0,feature_amount):
+            #print(k)
+            for i in range(0,layers_by_wall-from_layer):
+                for j in range(0, size_pic_X-feature_size_X):
+                    #here i calculate coordinates clice of sample to compare with feature map templets
+                    #operand 'if' is used to decrease time calc, the k=0 it is a pure horizontal line on feature map, if at thix point (i,j) no horisontal line hence no another feature also
+                    if (k==0) | (SummResult[0,i,j]>4):
+                        x1=j
+                        x2=j+feature_size_X
+                        y1=size_pic_Y-feature_size_Y-(i+from_layer)
+                        y2=size_pic_Y-(i+from_layer)
+                        local_feature = BinareFilterSample[y1:y2, x1:x2]
+                        #here i multiply pixel by pixel,this operation save only nonzero elements at both matrix, futher i summ all nonzero elements
+                        SummResult[k,i,j] = torch.sum(local_feature*feature_map[k])+1
+                        one_dimension_result[num_sample_in-num_sample_from, 0, k*i+j]=SummResult[k,i,j]
+                        #if SummResult[k,i,j]>4: heating_map[y1:y2,x1:x2]=heating_map[y1:y2,x1:x2]+feature_map.long()[k]
 
     one_dimension_result=m_pool_1d(one_dimension_result)
     test='false'
@@ -61,12 +68,12 @@ def capture_feature(face_dataset, feature_map, num_sample,from_layer, layers_by_
         fig = plt.figure()
         ax = plt.subplot(2, 1, 1)  # coordinates
         plt.tight_layout()
-        ax.set_title('Sample boundaries #{}'+str(num_sample))
+        ax.set_title('Sample boundaries #{}'+str(num_sample_in))
         ax.axis('off')
         plt.imshow(BinareFilterSample, 'gray')
         ax = plt.subplot(2, 1, 2)  # coordinates
         plt.tight_layout()
-        ax.set_title('Heating map'+str(num_sample))
+        ax.set_title('Heating map'+str(num_sample_in))
         ax.axis('off')
         # print(SummResult)
         # show the statistic matrix
@@ -174,23 +181,24 @@ if __name__ == "__main__":
     number_of_samples_lstm=1200
     first_sample_lstm=28*12000 #63 * 12000
     error=numpy.zeros(shape=(number_of_samples_lstm), dtype='float32')
-    input = (capture_feature(face_dataset, feature_map, 0,0, 10)[1])
+    input = (capture_feature(face_dataset, feature_map, first_sample_lstm, first_sample_lstm+sequence_len, 0, 10)[1])
     print(input)
     target=torch.FloatTensor(first_sample_lstm+number_of_samples_lstm)
+
     # number of features input, number of features hidden layer ,2- number or recurent layers
     rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, 1)
     print(input.data.shape)
-    input_captured=Variable(torch.FloatTensor(number_of_samples_lstm,1,1,input.data.shape[2]))#tensor for repead using of captured feature
+    input_captured=Variable(torch.FloatTensor(math.floor(number_of_samples_lstm/sequence_len), sequence_len, 1, input.data.shape[2]))#tensor for repead using of captured feature
     ln=torch.nn.Linear(100,1)
     #rnn.weight_ih_l0.data.fill_(1000)
     #rnn.weight_hh_l0.data.fill_(1000)
     optimizer = torch.optim.SGD(rnn.parameters(), lr=0.01, momentum=0.9)
-    h0 = torch.autograd.Variable(torch.FloatTensor(1,1,hidden_features))
+    h0 = torch.autograd.Variable(torch.FloatTensor(sequence_len,1,hidden_features))
     h0.data[0,0,0]=120000
-    c0 = torch.autograd.Variable(torch.FloatTensor(1,1,hidden_features))
+    c0 = torch.autograd.Variable(torch.FloatTensor(sequence_len,1,hidden_features))
     c0.data[0, 0, 0] = 120000
     output, (hn, cn) = rnn(input, (h0, c0))
-
+    print(output)
     w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
     w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
     u_ii = w_ii.clone()
@@ -211,48 +219,55 @@ if __name__ == "__main__":
     print(target)
 
     #cycle by all samples
-    for sample_num in range(first_sample_lstm, first_sample_lstm+number_of_samples_lstm):
+    for sequence_num in range(0, math.floor((number_of_samples_lstm)/sequence_len)):
+
+        input = (capture_feature(face_dataset, feature_map, first_sample_lstm+sequence_num*sequence_len,first_sample_lstm+(sequence_num+1)*sequence_len, 0, 10)[1])
+        input_captured[sequence_num] = input
 
         output, (hn, cn) = rnn(input)
         output=ln(output)
         w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
         w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
         loss = (torch.sum(output)-(target[sample_num]))
-        error[sample_num-first_sample_lstm]=loss.data[0]
-        input=(capture_feature(face_dataset, feature_map, sample_num,0,10)[1])
-        input_captured[sample_num-first_sample_lstm]=input
+        error[sequence_num]=loss.data[0]
         loss.backward()
         optimizer.step()
         ln.weight.data = ln.weight.data + ln.weight.grad.data*0.01#*(0.01*abs(loss.data[0])+0.01)
-        print(str(sample_num-first_sample_lstm)+' '+str(torch.sum(w_ii - u_ii).data[0]) + '  ' + str(torch.sum(w_if - u_if).data[0]) + '  ' + str(
-            torch.sum(w_ic - u_ic).data[0]) + '  ' + str(torch.sum(w_io - u_io).data[0]) + '  ' + str(
-            torch.sum(w_hi - u_hi).data[0]) + '  ' + str(torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
-            torch.sum(w_hc - u_hc).data[0]) + '  ' + str(torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
-            loss.data[0])+'  out'+str(torch.sum(output).data[0])+'   '+str(torch.mean(ln.weight).data[0])+'  '+ str(torch.mean(ln.weight.grad).data[0]))
+        print(str(first_sample_lstm+sequence_num*sequence_len)+'-'+ str(first_sample_lstm+(sequence_num+1)*sequence_len)+' '+str("%.4f" %torch.sum(w_ii - u_ii).data[0]) + '  ' + str("%.4f" %torch.sum(w_if - u_if).data[0]) + '  ' + str(
+            "%.4f" %torch.sum(w_ic - u_ic).data[0]) + '  ' + str("%.4f" %torch.sum(w_io - u_io).data[0]) + '  ' + str(
+            "%.4f" %torch.sum(w_hi - u_hi).data[0]) + '  ' + str("%.4f" %torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
+            "%.4f" %torch.sum(w_hc - u_hc).data[0]) + '  ' + str("%.4f" %torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
+            "%.4f" %loss.data[0])+'  out'+str("%.4f" %torch.sum(output).data[0])+'   '+str("%.4f" %torch.mean(ln.weight).data[0])+'  '+ str("%.4f" %torch.mean(ln.weight.grad).data[0]))
         ln.weight.grad.data.zero_()
         optimizer.zero_grad()
 
 
     # repead cycle by all samples
     for repead in range(0,10):
-        for sample_num in range(first_sample_lstm, first_sample_lstm + number_of_samples_lstm):
+        for sequence_num in range(0, math.floor((number_of_samples_lstm) / sequence_len)):
+
+            input = input_captured[sequence_num]
             output, (hn, cn) = rnn(input)
             output = ln(output)
             w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
             w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
             loss = (torch.sum(output) - (target[sample_num]))
-            error[sample_num - first_sample_lstm] = loss.data[0]
-            input = input_captured[sample_num-first_sample_lstm]
+            error[sequence_num] = loss.data[0]
             loss.backward()
             optimizer.step()
             ln.weight.data = ln.weight.data + ln.weight.grad.data * 0.01  # *(0.01*abs(loss.data[0])+0.01)
-            print(str(sample_num - first_sample_lstm) + ' ' + str(torch.sum(w_ii - u_ii).data[0]) + '  ' + str(
-                torch.sum(w_if - u_if).data[0]) + '  ' + str(
-                torch.sum(w_ic - u_ic).data[0]) + '  ' + str(torch.sum(w_io - u_io).data[0]) + '  ' + str(
-                torch.sum(w_hi - u_hi).data[0]) + '  ' + str(torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
-                torch.sum(w_hc - u_hc).data[0]) + '  ' + str(torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
-                loss.data[0]) + '  out' + str(torch.sum(output).data[0]) + '   ' + str(
-                torch.mean(ln.weight).data[0]) + '  ' + str(torch.mean(ln.weight.grad).data[0]))
+            print(str(first_sample_lstm + sequence_num * sequence_len) + '-' + str(
+                first_sample_lstm + (sequence_num + 1) * sequence_len) + ' ' + str(
+                "%.4f" % torch.sum(w_ii - u_ii).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_if - u_if).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_ic - u_ic).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_io - u_io).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_hi - u_hi).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_hc - u_hc).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
+                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.sum(output).data[0]) + '   ' + str(
+                "%.4f" % torch.mean(ln.weight).data[0]) + '  ' + str("%.4f" % torch.mean(ln.weight.grad).data[0]))
             ln.weight.grad.data.zero_()
             optimizer.zero_grad()
 
