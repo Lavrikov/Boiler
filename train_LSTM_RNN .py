@@ -8,6 +8,7 @@ import math
 from frames_dataset import FramesDataset
 from picture_transformation import boundaries_detect_laplacian
 from picture_transformation import init_edge_feature_map_5x5
+from random import shuffle
 
 def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, from_layer, layers_by_wall):
     """
@@ -138,6 +139,7 @@ if __name__ == "__main__":
         #print(w_ii.grad)
         #print(loss)
 
+
     #here i load the video dataset like a group of a pictures
     face_dataset = FramesDataset('file:///media/aleksandr/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/aleksandr/Files/@Machine/Github/Boiler/train')
     #face_dataset = FramesDataset('./train/annotations.csv', './train')
@@ -183,21 +185,21 @@ if __name__ == "__main__":
     error=numpy.zeros(shape=(math.floor(number_of_samples_lstm/sequence_len)), dtype='float32')
     input = (capture_feature(face_dataset, feature_map, first_sample_lstm, first_sample_lstm+sequence_len, 0, 10)[1])
     print(input)
-    target=torch.FloatTensor(first_sample_lstm+number_of_samples_lstm)
+    target=torch.FloatTensor(math.floor(number_of_samples_lstm/sequence_len))
 
     # number of features input, number of features hidden layer ,2- number or recurent layers
     rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, 1)
     print(input.data.shape)
     input_captured=Variable(torch.FloatTensor(math.floor(number_of_samples_lstm/sequence_len), sequence_len, 1, input.data.shape[2]))#tensor for repead using of captured feature
-    #rnn.weight_ih_l0.data.fill_(1000)
-    #rnn.weight_hh_l0.data.fill_(1000)
-    optimizer = torch.optim.SGD(rnn.parameters(), lr=0.01, momentum=0.9)
+    optimizer = torch.optim.SGD(rnn.parameters(), lr=0.1, momentum=0.9)
+
     h0 = torch.autograd.Variable(torch.FloatTensor(sequence_len,1,hidden_features))
-    h0.data[0,0,0]=120000
+    h0.data[0,0,0]=1
     c0 = torch.autograd.Variable(torch.FloatTensor(sequence_len,1,hidden_features))
-    c0.data[0, 0, 0] = 120000
+    c0.data[0, 0, 0] = 1
     output, (hn, cn) = rnn(input, (h0, c0))
     print(output)
+
     w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
     w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
     u_ii = w_ii.clone()
@@ -209,45 +211,67 @@ if __name__ == "__main__":
     u_hc = w_hc.clone()
     u_ho = w_ho.clone()
 
-    for sample_num in range(first_sample_lstm, first_sample_lstm + number_of_samples_lstm):
+    for sequence_num in range(0,math.floor((number_of_samples_lstm)/sequence_len)):
+        sample_num=first_sample_lstm + sequence_num * sequence_len
         print(sample_num)
-        target[sample_num] = float(face_dataset[sample_num]['heat_transfer'])
+        target[sequence_num] = float(face_dataset[sample_num]['heat_transfer'])
         #print(sample_num)
     target=Variable(target)
-    print('heat transfer hedings are loaded')
+    print('heat transfer headings are loaded')
     print(target)
 
-    #cycle by all samples
-    for sequence_num in range(0, math.floor((number_of_samples_lstm)/sequence_len)):
+    from_video='false'
+    if from_video=='true':
+        #cycle by all samples
+        for sequence_num in range(0, math.floor((number_of_samples_lstm)/sequence_len)):
 
-        input = (capture_feature(face_dataset, feature_map, first_sample_lstm+sequence_num*sequence_len,first_sample_lstm+(sequence_num+1)*sequence_len, 0, 10)[1])
-        input_captured[sequence_num] = input
+            input = (capture_feature(face_dataset, feature_map, first_sample_lstm+sequence_num*sequence_len,first_sample_lstm+(sequence_num+1)*sequence_len, 0, 10)[1])
+            input_captured[sequence_num] = input
 
-        output, (hn, cn) = rnn(input)
-        w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
-        w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
-        loss = (torch.sum(output)-(target[sample_num]))
-        error[sequence_num]=loss.data[0]
-        loss.backward()
-        optimizer.step()
-        print(str(first_sample_lstm+sequence_num*sequence_len)+'-'+ str(first_sample_lstm+(sequence_num+1)*sequence_len)+' '+str("%.4f" %torch.sum(w_ii - u_ii).data[0]) + '  ' + str("%.4f" %torch.sum(w_if - u_if).data[0]) + '  ' + str(
-            "%.4f" %torch.sum(w_ic - u_ic).data[0]) + '  ' + str("%.4f" %torch.sum(w_io - u_io).data[0]) + '  ' + str(
-            "%.4f" %torch.sum(w_hi - u_hi).data[0]) + '  ' + str("%.4f" %torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
-            "%.4f" %torch.sum(w_hc - u_hc).data[0]) + '  ' + str("%.4f" %torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
-            "%.4f" %loss.data[0])+'  out'+str("%.4f" %torch.sum(output).data[0])+'   ')
-        optimizer.zero_grad()
+            output, (hn, cn) = rnn(input,(h0,c0))
 
-
-    # repead cycle by all samples
-    for repead in range(0,10):
-        for sequence_num in range(0, math.floor((number_of_samples_lstm) / sequence_len)):
-
-            input = input_captured[sequence_num]
-            output, (hn, cn) = rnn(input)
             w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
             w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
-            loss = (torch.sum(output) - (target[sample_num]))
+
+            loss = (torch.sum(hn)-(target[sequence_num]))
+            error[sequence_num]=loss.data[0]
+
+            loss.backward()
+            optimizer.step()
+
+            print(str(first_sample_lstm+sequence_num*sequence_len)+'-'+ str(first_sample_lstm+(sequence_num+1)*sequence_len)+' '+str("%.4f" %torch.sum(w_ii - u_ii).data[0]) + '  ' + str("%.4f" %torch.sum(w_if - u_if).data[0]) + '  ' + str(
+                "%.4f" %torch.sum(w_ic - u_ic).data[0]) + '  ' + str("%.4f" %torch.sum(w_io - u_io).data[0]) + '  ' + str(
+                "%.4f" %torch.sum(w_hi - u_hi).data[0]) + '  ' + str("%.4f" %torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
+                "%.4f" %torch.sum(w_hc - u_hc).data[0]) + '  ' + str("%.4f" %torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
+                "%.4f" %loss.data[0])+'  out'+str("%.4f" %torch.sum(hn).data[0])+'   ')
+            optimizer.zero_grad()
+
+        torch.save(input_captured.byte(), '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train.pt')
+    else:
+        input_captured=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train.pt').float()
+        print('this tensor is loaded from file')
+        print(input_captured.shape)
+
+        # repead cycle by all samples
+    for repead in range(0,10):
+        print('repeat'+str(repead))
+
+        samples_indexes = [i for i in range(0, math.floor((number_of_samples_lstm) / sequence_len))]  # A list contains all shuffle requires numbers
+        shuffle(samples_indexes)
+
+
+        for index, sequence_num in enumerate(samples_indexes):
+            print(sequence_num)
+            input = input_captured[sequence_num]
+
+            output, (hn, cn) = rnn(input, (h0, c0))
+
+            w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
+            w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
+
+            loss = ((target[sequence_num]) - torch.sum(hn))
             error[sequence_num] = loss.data[0]
+
             loss.backward()
             optimizer.step()
             print(str(first_sample_lstm + sequence_num * sequence_len) + '-' + str(
@@ -260,7 +284,7 @@ if __name__ == "__main__":
                 "%.4f" % torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_hc - u_hc).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
-                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.sum(output).data[0]) + '   ' )
+                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.sum(hn).data[0]) + '   ' )
             optimizer.zero_grad()
 
     print(u_ii)
