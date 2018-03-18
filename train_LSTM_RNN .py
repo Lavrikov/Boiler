@@ -177,8 +177,8 @@ if __name__ == "__main__":
     # 2 argument - is equal a number of batch - better to use 1
     # 3 argument - is one dimensional array contains all features from all part of picture- it is require convert 3 dimensional array to 1 dimension and put to this cell.
     # The structure of paramenters LSTM(lenght of array with features=big value, number of heatures in output can be lower and higer than in input- how mach i want, number of layer in recurent model)
-    hidden_layer=1
-    hidden_features=1
+    hidden_layer=2
+    hidden_features=700
     sequence_len=100
     number_of_samples_lstm=120000
     first_sample_lstm=28*12000 #63 * 12000
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     target=torch.FloatTensor(math.floor(number_of_samples_lstm/sequence_len))
 
     # number of features input, number of features hidden layer ,2- number or recurent layers
-    rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, hidden_layer)
+    rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, hidden_layer, dropout=0.1)
     print(input.data.shape)
     input_captured=Variable(torch.FloatTensor(math.floor(number_of_samples_lstm/sequence_len), sequence_len, 1, input.data.shape[2]))#tensor for repead using of captured feature
     optimizer = torch.optim.SGD(rnn.parameters(), lr=0.01, momentum=0.9)
