@@ -177,8 +177,8 @@ if __name__ == "__main__":
     # 2 argument - is equal a number of batch - better to use 1
     # 3 argument - is one dimensional array contains all features from all part of picture- it is require convert 3 dimensional array to 1 dimension and put to this cell.
     # The structure of paramenters LSTM(lenght of array with features=big value, number of heatures in output can be lower and higer than in input- how mach i want, number of layer in recurent model)
-
-    hidden_features=100
+    hidden_layer=1
+    hidden_features=1
     sequence_len=100
     number_of_samples_lstm=120000
     first_sample_lstm=28*12000 #63 * 12000
@@ -188,15 +188,15 @@ if __name__ == "__main__":
     target=torch.FloatTensor(math.floor(number_of_samples_lstm/sequence_len))
 
     # number of features input, number of features hidden layer ,2- number or recurent layers
-    rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, 1)
+    rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, hidden_layer)
     print(input.data.shape)
     input_captured=Variable(torch.FloatTensor(math.floor(number_of_samples_lstm/sequence_len), sequence_len, 1, input.data.shape[2]))#tensor for repead using of captured feature
-    optimizer = torch.optim.SGD(rnn.parameters(), lr=0.1, momentum=0.9)
+    optimizer = torch.optim.SGD(rnn.parameters(), lr=0.01, momentum=0.9)
 
     h0 = torch.autograd.Variable(torch.FloatTensor(sequence_len,1,hidden_features))
-    h0.data[0,0,0]=1
+    h0.data[0,0,0]=0.01
     c0 = torch.autograd.Variable(torch.FloatTensor(sequence_len,1,hidden_features))
-    c0.data[0, 0, 0] = 1
+    c0.data[0, 0, 0] =0.01
     output, (hn, cn) = rnn(input, (h0, c0))
     print(output)
 
@@ -211,17 +211,22 @@ if __name__ == "__main__":
     u_hc = w_hc.clone()
     u_ho = w_ho.clone()
 
-    for sequence_num in range(0,math.floor((number_of_samples_lstm)/sequence_len)):
-        sample_num=first_sample_lstm + sequence_num * sequence_len
-        print(sample_num)
-        target[sequence_num] = float(face_dataset[sample_num]['heat_transfer'])
-        #print(sample_num)
-    target=Variable(target)
-    print('heat transfer headings are loaded')
-    print(target)
 
     from_video='false'
     if from_video=='true':
+
+        for sequence_num in range(0, math.floor((number_of_samples_lstm) / sequence_len)):
+            sample_num = first_sample_lstm + sequence_num * sequence_len
+            print(sample_num)
+            target[sequence_num] = float(face_dataset[sample_num]['heat_transfer'])
+            # print(sample_num)
+        # normalization
+        target = target / torch.max(target)
+        target = Variable(target)
+        print('heat transfer headings are loaded')
+        print(target)
+        torch.save(target, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload.pt')
+
         #cycle by all samples
         for sequence_num in range(0, math.floor((number_of_samples_lstm)/sequence_len)):
 
@@ -233,7 +238,7 @@ if __name__ == "__main__":
             w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
             w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
 
-            loss = (torch.sum(hn)-(target[sequence_num]))
+            loss = ((target[sequence_num])-10000*torch.max(hn))
             error[sequence_num]=loss.data[0]
 
             loss.backward()
@@ -244,14 +249,23 @@ if __name__ == "__main__":
                 "%.4f" %torch.sum(w_hi - u_hi).data[0]) + '  ' + str("%.4f" %torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
                 "%.4f" %torch.sum(w_hc - u_hc).data[0]) + '  ' + str("%.4f" %torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
                 "%.4f" %loss.data[0])+'  out'+str("%.4f" %torch.sum(hn).data[0])+'   ')
+
             optimizer.zero_grad()
 
         torch.save(input_captured.byte(), '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train.pt')
+        torch.save(target, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload.pt')
     else:
         input_captured=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train.pt').float()
+        target=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload.pt')
         print('this tensor is loaded from file')
         print(input_captured.shape)
 
+    print('normalization')
+    for sequence_num in range(0, math.floor((number_of_samples_lstm) / sequence_len)):
+        print(sequence_num)
+        input_captured[sequence_num]=input_captured[sequence_num]/torch.max(input_captured[sequence_num])-0.5
+
+    print('learning started')
         # repead cycle by all samples
     for repead in range(0,10):
         print('repeat'+str(repead))
@@ -269,7 +283,7 @@ if __name__ == "__main__":
             w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
             w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
 
-            loss = ((target[sequence_num]) - torch.sum(hn))
+            loss = ((target[sequence_num])-torch.mean(hn))
             error[sequence_num] = loss.data[0]
 
             loss.backward()
@@ -284,7 +298,17 @@ if __name__ == "__main__":
                 "%.4f" % torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_hc - u_hc).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
-                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.sum(hn).data[0]) + '   ' )
+                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.mean(hn).data[0]) + '   ' )
+
+            u_ii = w_ii.clone()
+            u_if = w_if.clone()
+            u_ic = w_ic.clone()
+            u_io = w_io.clone()
+            u_hi = w_hi.clone()
+            u_hf = w_hf.clone()
+            u_hc = w_hc.clone()
+            u_ho = w_ho.clone()
+            output_prev=output.clone()
             optimizer.zero_grad()
 
     print(u_ii)
