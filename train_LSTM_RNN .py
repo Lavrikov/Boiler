@@ -92,7 +92,7 @@ def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, f
 
 
         if nonzero_number>0:
-            one_dimension_result[j, 0, nonzero_number ] = 1
+            one_dimension_result[j, 0, nonzero_number] = 1
             statistic_map[j]=nonzero_number
 
 
@@ -211,6 +211,8 @@ if __name__ == "__main__":
     # 2 argument - is equal a number of batch - better to use 1
     # 3 argument - is one dimensional array contains all features from all part of picture- it is require convert 3 dimensional array to 1 dimension and put to this cell.
     # The structure of paramenters LSTM(lenght of array with features=big value, number of heatures in output can be lower and higer than in input- how mach i want, number of layer in recurent model)
+
+    #model time step (sequense is a pixels during X-axis on 3 time step frames)
     hidden_layer=1
     hidden_features=1
     time_step_vocabulary=3# number of time steps to put into vocabulary
@@ -282,7 +284,7 @@ if __name__ == "__main__":
             #sequence_num = samples_indexes[0]
             SummResult, input, statistic_map = (capture_feature(face_dataset, feature_map, first_sample_lstm+sequence_num*time_step_vocabulary,first_sample_lstm+(sequence_num+1)*time_step_vocabulary, 0, 10))
             #input_captured[sequence_num] = input
-       
+
             statistic_maps[sequence_num]=statistic_map
 
             output, (hn, cn) = rnn(input,(h0,c0))
@@ -292,14 +294,14 @@ if __name__ == "__main__":
             b_hi, b_hf, b_hc, b_ho=rnn.bias_hh_l0.chunk(4, 0)
 
             loss = ((target[sequence_num])- torch.max(hn*w_ho+b_ho))**2
-            error[sequence_num]=loss.data[0]
+            error[index]=loss.data[0]
 
             loss.backward()
             optimizer.step()
 
             #print(torch.nn.register_backward_hook(rnn))
 
-            print(str(first_sample_lstm+sequence_num*time_step_vocabulary)+'-'+ str(first_sample_lstm+(sequence_num+1)*time_step_vocabulary)+' '+str("%.4f" %torch.sum(w_ii - u_ii).data[0]) + '  ' + str("%.4f" %torch.sum(w_if - u_if).data[0]) + '  ' + str(
+            print(str(index)+'  '+str(first_sample_lstm+sequence_num*time_step_vocabulary)+'-'+ str(first_sample_lstm+(sequence_num+1)*time_step_vocabulary)+' '+str("%.4f" %torch.sum(w_ii - u_ii).data[0]) + '  ' + str("%.4f" %torch.sum(w_if - u_if).data[0]) + '  ' + str(
                 "%.4f" %torch.sum(w_ic - u_ic).data[0]) + '  ' + str("%.4f" %torch.sum(w_io - u_io).data[0]) + '  ' + str(
                 "%.4f" %torch.sum(w_hi - u_hi).data[0]) + '  ' + str("%.4f" %torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
                 "%.4f" %torch.sum(w_hc - u_hc).data[0]) + '  ' + str("%.4f" %torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
@@ -317,6 +319,17 @@ if __name__ == "__main__":
             #plt.xlabel('Heatload')
             #plt.show()
 
+            if index==8000*int(index/8000):
+                plt.clf()
+                plt.axes([0.3, 0.3, 0.5, 0.5])
+                # plt.title ('iteration error for ' + str(5) +' max eigenvalues and eigenvectors')
+                plt.plot(error[0:index], 'k:', label='1')
+                plt.xlabel('Iteration')
+                plt.ylabel('error')
+                plt.legend()
+                plt.show()
+
+
             u_ii = w_ii.clone()
             u_if = w_if.clone()
             u_ic = w_ic.clone()
@@ -333,42 +346,86 @@ if __name__ == "__main__":
         #torch.save(input_captured.byte(), '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_3time step.pt')
         torch.save(target, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_3time step.pt')
     else:
-        input_captured=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_3time step.pt').float()
-        target=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_3time step.pt')
+        input_captured=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_seq_100.pt').float()
+        target=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_seq_100.pt')
         print('this tensor is loaded from file')
         print(input_captured.shape)
+        print('heat load')
+        print(target.shape)
+        print('load 1')
+        print(target)
 
+    #model sequence 100 (every pixel calculated in 100 frames)
+    hidden_layer = 1
+    hidden_features = 1
+    sequence_len = 100
+    number_of_samples_lstm = 120000
+    first_sample_lstm = 28 * 12000  # 63 * 12000
 
+    number_of_sequences = int(math.floor(number_of_samples_lstm / sequence_len))
 
+    error = numpy.zeros(shape=(number_of_sequences), dtype='float32')
 
-    print('normalization')
-    for sequence_num in range(0, math.floor((number_of_samples_lstm) / time_step_vocabulary)):
-        print(sequence_num)
-        input_captured[sequence_num]=input_captured[sequence_num]/torch.max(input_captured[sequence_num])
+    #target = torch.FloatTensor(number_of_sequences)
+    target=target/100000
+    input=input_captured[0]
+
+    # number of features input, number of features hidden layer ,2- number or recurent layers
+    rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, hidden_layer, dropout=0.1)
+    print(input.data.shape)
+    # input_captured=Variable(torch.FloatTensor(math.floor(number_of_samples_lstm/sequence_len), sequence_len, 1, input.data.shape[2]))#tensor for repead using of captured feature
+    optimizer = torch.optim.Adadelta(rnn.parameters(), lr=0.1)
+
+    h0 = torch.autograd.Variable(torch.FloatTensor(sequence_len, 1, hidden_features))
+    h0.data[0, 0, 0] = 0.01
+    c0 = torch.autograd.Variable(torch.FloatTensor(sequence_len, 1, hidden_features))
+    c0.data[0, 0, 0] = 0.01
+    output, (hn, cn) = rnn(input, (h0, c0))
+    print(output)
+
+    w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
+    w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
+    u_ii = w_ii.clone()
+    u_if = w_if.clone()
+    u_ic = w_ic.clone()
+    u_io = w_io.clone()
+    u_hi = w_hi.clone()
+    u_hf = w_hf.clone()
+    u_hc = w_hc.clone()
+    u_ho = w_ho.clone()
+
+    #print('normalization')
+    #for sequence_num in range(0, number_of_sequences):
+    #    print(sequence_num)
+    #    input_captured[sequence_num]=input_captured[sequence_num]/torch.max(input_captured[sequence_num])
 
     print('learning started')
         # repead cycle by all samples
     for repead in range(0,10):
         print('repeat'+str(repead))
 
-        samples_indexes = [i for i in range(0, math.floor((number_of_samples_lstm) / time_step_vocabulary))]  # A list contains all shuffled requires numbers
+        samples_indexes = [i for i in range(0, number_of_sequences)]  # A list contains all shuffled requires numbers
         shuffle(samples_indexes)
 
 
         for index, sequence_num in enumerate(samples_indexes):
+
             print(sequence_num)
-           # input = input_captured[sequence_num]
+
+            input = input_captured[sequence_num]
 
             output, (hn, cn) = rnn(input, (h0, c0))
 
             w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
             w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
+            b_hi, b_hf, b_hc, b_ho=rnn.bias_hh_l0.chunk(4, 0)
 
-            loss = ((target[sequence_num])-torch.mean(hn))
+            loss = ((target[sequence_num]) - torch.max(hn * w_ho + b_ho)) ** 2
             error[sequence_num] = loss.data[0]
 
             loss.backward()
             optimizer.step()
+
             print(str(first_sample_lstm + sequence_num * time_step_vocabulary) + '-' + str(
                 first_sample_lstm + (sequence_num + 1) * time_step_vocabulary) + ' ' + str(
                 "%.4f" % torch.sum(w_ii - u_ii).data[0]) + '  ' + str(
@@ -379,7 +436,7 @@ if __name__ == "__main__":
                 "%.4f" % torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_hc - u_hc).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
-                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.mean(hn).data[0]) + '   '+ str(torch.sum(input).data[0]) + '   heat='+str(target[sequence_num].data[0]*75000))
+                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.max(hn).data[0]) + '   '+ str(torch.sum(input).data[0]) + '   heat='+str(target[sequence_num].data[0]))
 
             #for hn_i in range(0,sequence_len):print(torch.mean(output[hn_i]).data[0])
 
