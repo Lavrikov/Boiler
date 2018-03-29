@@ -23,7 +23,7 @@ def init_edge_feature_map_5x5():
     for k in range(0, 17):
         #horizontal line
         feature_map[k,-1, 4:7]=1
-        #edge line, k+3 becouse to mach horizontal  line
+        #edge line, k+3 because to mach horizontal  line
         for r in range(0, 10):
             i=(6-int(r*np.sin(((k+3)/number_of_edges)*0.5*3.14)))
             j=(3-int(r*np.cos(((k+3)/number_of_edges)*0.5*3.14)))

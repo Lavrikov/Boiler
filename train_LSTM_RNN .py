@@ -30,19 +30,20 @@ def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, f
     k_range = feature_amount
     i_range = layers_by_wall - from_layer
     j_range = size_pic_X - feature_size_X
+    time_steps_vocabulary=num_sample_to-num_sample_from
 
 
     SummResult = torch.FloatTensor(feature_amount, layers_by_wall - from_layer, size_pic_X).zero_()
-    one_dimension_result = torch.FloatTensor(size_pic_X - feature_size_X, 1, feature_amount * feature_amount * feature_amount).zero_()
+    one_dimension_result = torch.FloatTensor(size_pic_X - feature_size_X, 1, feature_amount**time_steps_vocabulary).zero_()
     heating_map_numpy = np.zeros(shape=(size_pic_Y, size_pic_X), dtype='int64')
     heating_map = torch.from_numpy(heating_map_numpy)
     statistic_map = np.zeros(shape=(j_range), dtype='int64')
-    max_local = torch.FloatTensor(3).zero_()
-    max_local_number=torch.IntTensor(3).zero_()
+    max_local = torch.FloatTensor(time_steps_vocabulary).zero_()
+    max_local_number=torch.IntTensor(time_steps_vocabulary).zero_()
 
     # here i find boundaries for 3 pictures
     t=boundaries_detect_laplacian(face_dataset[num_sample_from])/255
-    BinareFilterSample=torch.ByteTensor(3,t.shape[0],t.shape[1])
+    BinareFilterSample=torch.ByteTensor(time_steps_vocabulary,t.shape[0],t.shape[1])
     BinareFilterSample[0]=t
     for num_sample_in in range(num_sample_from+1, num_sample_to):
         # here i extract boundaries from sample, format binares picture
@@ -150,28 +151,6 @@ def boundaries_summ_conv(face_dataset, num_samples_from, num_samples_to, multipl
     return SummResult
 
 if __name__ == "__main__":
-
-    #test run LSTM from manual example
-    target=Variable(torch.FloatTensor(5,3,20))
-    rnn = torch.nn.LSTM(10, 20, 2)
-    optimizer = torch.optim.SGD(rnn.parameters(), lr=0.01, momentum=0.9)
-    input = Variable(torch.randn(5, 3, 10))
-    h0 = Variable(torch.randn(2, 3, 20))
-    c0 = Variable(torch.randn(2, 3, 20))
-    output, hn = rnn(input, (h0, c0))
-    u_ii=1
-    for j in range(0, 10):
-        output, hn = rnn(input)
-        w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
-        w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
-        loss=torch.mean(output-target)
-        loss.backward()
-        optimizer.step()
-        print(torch.sum(w_ii-u_ii))
-        u_ii = w_ii.clone()
-        #print(w_ii)
-        #print(w_ii.grad)
-        #print(loss)
 
 
     #here i load the video dataset like a group of a pictures
