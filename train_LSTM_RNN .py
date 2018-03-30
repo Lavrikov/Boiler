@@ -11,7 +11,7 @@ from picture_transformation import boundaries_detect_laplacian
 from picture_transformation import init_edge_feature_map_5x5
 from random import shuffle
 
-def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, from_layer, layers_by_wall):
+def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, from_layer, layers_by_wall, time_speed):
     """
     :param face_dataset: the video dataset like a group of a pictures
     :param feature_map: array of with feature map 1 dimension-number of temple, 2-3 dimentions size temple of picture
@@ -19,6 +19,7 @@ def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, f
     :param num_samples_to: number of picture to calculation sequence of pictures
     :param layers_by_wall: number of layers by wall where i search features
     :param from_layer: number of layers from edge of picture by Y
+    :param time_speed: number of samples to calculate local speed of edges cheinging
     """
     #final results matrix will has lower second two dimension(7x340) than initial pictures (48x340) because we use only part by the wall, first dimension is equal feature dimension of feature_map
     m_pool_1d = torch.nn.MaxPool1d(20)
@@ -30,20 +31,21 @@ def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, f
     k_range = feature_amount
     i_range = layers_by_wall - from_layer
     j_range = size_pic_X - feature_size_X
-    time_steps_vocabulary=num_sample_to-num_sample_from
+    number_steps_signature=int((num_sample_to-num_sample_from)/time_speed)
 
 
     SummResult = torch.FloatTensor(feature_amount, layers_by_wall - from_layer, size_pic_X).zero_()
-    one_dimension_result = torch.FloatTensor(size_pic_X - feature_size_X, 1, feature_amount**time_steps_vocabulary).zero_()
+    one_dimension_result = torch.FloatTensor(size_pic_X - feature_size_X, 1, (feature_amount**time_step_speed)*number_steps_signature).zero_()
     heating_map_numpy = np.zeros(shape=(size_pic_Y, size_pic_X), dtype='int64')
     heating_map = torch.from_numpy(heating_map_numpy)
     statistic_map = np.zeros(shape=(j_range), dtype='int64')
-    max_local = torch.FloatTensor(time_steps_vocabulary).zero_()
-    max_local_number=torch.IntTensor(time_steps_vocabulary).zero_()
+    max_local = torch.FloatTensor(time_speed).zero_()
+    max_local_number=torch.IntTensor(time_speed).zero_()
+    captured_features = torch.FloatTensor(size_pic_X - feature_size_X, 1, number_steps_signature).zero_()# (X, 1, nonzero elements number for every time step)
 
     # here i find boundaries for 3 pictures
     t=boundaries_detect_laplacian(face_dataset[num_sample_from])/255
-    BinareFilterSample=torch.ByteTensor(time_steps_vocabulary,t.shape[0],t.shape[1])
+    BinareFilterSample=torch.ByteTensor(number_steps_signature*time_speed,t.shape[0],t.shape[1])
     BinareFilterSample[0]=t
     for num_sample_in in range(num_sample_from+1, num_sample_to):
         # here i extract boundaries from sample, format binares picture
@@ -60,41 +62,49 @@ def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, f
 
     for j in range(0, j_range):
 
-        max_local.zero_()
-        max_local_number.zero_()
 
-        for num_sample_in in range(num_sample_from, num_sample_to):
+        for signature_step in range(0,number_steps_signature):
 
+            max_local.zero_()
+            max_local_number.zero_()
 
-            for i in range(0,i_range):
-                # here i compare k features_pictures with layer on the sample picture with srtide 1 py
+            num_sample_local_from=num_sample_from+signature_step*time_speed
+            num_sample_local_to=num_sample_from+signature_step*time_speed+time_speed
 
-                for k in range(0, k_range):
-
-                    #here i calculate coordinates clice of sample to compare with feature map templets
-                    #operand 'if' is used to decrease time calc, the k=0 it is a pure horizontal line on feature map, if at thix point (i,j) no horisontal line hence no another feature also
-                    if (k==0) | (SummResult[0,i,j]>4):
-                        x1=j
-                        x2=j+feature_size_X
-                        y1=size_pic_Y-feature_size_Y-(i+from_layer)
-                        y2=size_pic_Y-(i+from_layer)
-                        local_feature = BinareFilterSample[num_sample_in - num_sample_from][y1:y2, x1:x2]
-                        #here i multiply pixel by pixel,this operation save only nonzero elements at both matrix, futher i summ all nonzero elements
-                        SummResult[k,i,j] = torch.sum(local_feature*feature_map[k])+1
-                        #here i save the number of max coincide element by Y axis
-                        if(SummResult[k,i,j]>max_local[num_sample_in-num_sample_from]):
-                            max_local[num_sample_in - num_sample_from]=SummResult[k,i,j]
-                            max_local_number[num_sample_in - num_sample_from]=k
-
-        #here i calculate adress of nonzero element #k * k_range* k_range + i * k_range + j
-        nonzero_number=0
-        for num_sample_in in range(num_sample_from, num_sample_to):
-            nonzero_number=max_local_number[num_sample_in - num_sample_from]*(k_range**(num_sample_in - num_sample_from))+nonzero_number
+            for num_sample_in in range(num_sample_local_from, num_sample_local_to):
 
 
-        if nonzero_number>0:
-            one_dimension_result[j, 0, nonzero_number] = 1
-            statistic_map[j]=nonzero_number
+                for i in range(0,i_range):
+                    # here i compare k features_pictures with layer on the sample picture with srtide 1 py
+
+                    for k in range(0, k_range):
+
+                        #here i calculate coordinates clice of sample to compare with feature map templets
+                        #operand 'if' is used to decrease time calc, the k=0 it is a pure horizontal line on feature map, if at thix point (i,j) no horisontal line hence no another feature also
+                        if (k==0) | (SummResult[0,i,j]>4):
+                            x1=j
+                            x2=j+feature_size_X
+                            y1=size_pic_Y-feature_size_Y-(i+from_layer)
+                            y2=size_pic_Y-(i+from_layer)
+                            local_feature = BinareFilterSample[num_sample_in - num_sample_from][y1:y2, x1:x2]
+                            #here i multiply pixel by pixel,this operation save only nonzero elements at both matrix, futher i summ all nonzero elements
+                            SummResult[k,i,j] = torch.sum(local_feature*feature_map[k])+1
+                            #here i save the number of max coincide element by Y axis
+                            if(SummResult[k,i,j]>max_local[num_sample_in-num_sample_local_from]):
+                                max_local[num_sample_in - num_sample_local_from]=SummResult[k,i,j]
+                                max_local_number[num_sample_in - num_sample_local_from]=k
+
+            #here i calculate adress of nonzero element #k * k_range* k_range + i * k_range + j
+            nonzero_number=0
+            for num_sample_in in range(num_sample_local_from, num_sample_local_to):
+                nonzero_number=max_local_number[num_sample_in - num_sample_local_from]*(k_range**(num_sample_in - num_sample_local_from))+nonzero_number
+
+
+            if nonzero_number>0:
+                one_dimension_result[j, 0, nonzero_number+(feature_amount**time_step_speed)*signature_step] = 1
+                #print('x= '+str(j)+'  nonzero_number= '+ str(nonzero_number+(feature_amount**time_step_speed)*signature_step))
+                statistic_map[j]=nonzero_number
+                captured_features[j, 0,  signature_step] = nonzero_number# here i save captured number to reuse it after saving to file (nonzero number this is combination of two feature form two samples in the x coordinate
 
 
     #one_dimension_result=m_pool_1d(one_dimension_result)
@@ -116,7 +126,7 @@ def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, f
         plt.imshow(heating_map, 'gray')
         plt.show()
 
-    return SummResult, Variable(one_dimension_result), statistic_map
+    return SummResult, Variable(one_dimension_result), statistic_map, Variable(captured_features)
 
 def boundaries_summ_conv(face_dataset, num_samples_from, num_samples_to, multiply):
     """
@@ -194,13 +204,15 @@ if __name__ == "__main__":
     #model time step (sequense is a pixels during X-axis on 3 time step frames)
     hidden_layer=1
     hidden_features=1
-    time_step_vocabulary=3# number of time steps to put into vocabulary
+    time_step_speed=2# number of time steps to put into vocabulary(actially it is a function of the speed of the boundaries of a buble)
+    time_step_signature=30# number of samples added to signature of state of boiling
+
     number_of_samples_lstm=120000
     first_sample_lstm=28*12000 #63 * 12000
 
-    number_of_sequences=int(math.floor(number_of_samples_lstm/time_step_vocabulary))
+    number_of_sequences=int(math.floor(number_of_samples_lstm/(time_step_speed*time_step_signature)))
 
-    SummResult, input, statistic_map = (capture_feature(face_dataset, feature_map, first_sample_lstm, first_sample_lstm+time_step_vocabulary, 0, 10))
+    SummResult, input, statistic_map, capture_example = (capture_feature(face_dataset, feature_map, first_sample_lstm, first_sample_lstm+time_step_speed*time_step_signature, 0, 10,time_step_speed))
 
     sequence_len = input.data.shape[0]# number of pixelx by X of picture
     error=numpy.zeros(shape=(number_of_sequences), dtype='float32')
@@ -214,7 +226,7 @@ if __name__ == "__main__":
     # number of features input, number of features hidden layer ,2- number or recurent layers
     rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, hidden_layer, dropout=0.1)
     print(input.data.shape)
-    #input_captured=Variable(torch.FloatTensor(math.floor(number_of_samples_lstm/sequence_len), sequence_len, 1, input.data.shape[2]))#tensor for repead using of captured feature
+    input_captured=Variable(torch.FloatTensor(number_of_sequences, capture_example.data.shape[0], capture_example.data.shape[1], capture_example.data.shape[2]))#tensor for repead using of captured feature
     optimizer = torch.optim.Adadelta(rnn.parameters(), lr=0.1)
 
     h0 = torch.autograd.Variable(torch.FloatTensor(sequence_len,1,hidden_features))
@@ -241,7 +253,7 @@ if __name__ == "__main__":
 
         #here i create a tensor with heatload for a loss function
         for sequence_num in range(0, number_of_sequences):
-            sample_num = first_sample_lstm + sequence_num * time_step_vocabulary
+            sample_num = first_sample_lstm + sequence_num * time_step_speed*time_step_signature
             print(sample_num)
             target[sequence_num] = float(face_dataset[sample_num]['heat_transfer'])/100000
             # print(sample_num)
@@ -256,12 +268,12 @@ if __name__ == "__main__":
         samples_indexes = [i for i in range(0, number_of_sequences)]  # A list contains all shuffle requires numbers
         shuffle(samples_indexes)
         sequence_num=samples_indexes[0]
-        SummResult, input, statistic_map = (capture_feature(face_dataset, feature_map, first_sample_lstm+sequence_num*time_step_vocabulary,first_sample_lstm+(sequence_num+1)*time_step_vocabulary, 0, 10))
+        SummResult, input, statistic_map, input_captured[0] = (capture_feature(face_dataset, feature_map, first_sample_lstm+sequence_num*time_step_speed*time_step_signature,first_sample_lstm+(sequence_num+1)*time_step_speed*time_step_signature, 0, 10,time_step_speed))
 
         #cycle by all samples
         for index, sequence_num in enumerate(samples_indexes):
             #sequence_num = samples_indexes[0]
-            SummResult, input, statistic_map = (capture_feature(face_dataset, feature_map, first_sample_lstm+sequence_num*time_step_vocabulary,first_sample_lstm+(sequence_num+1)*time_step_vocabulary, 0, 10))
+            SummResult, input, statistic_map, input_captured[sequence_num] = (capture_feature(face_dataset, feature_map, first_sample_lstm+sequence_num*time_step_speed*time_step_signature,first_sample_lstm+(sequence_num+1)*time_step_speed*time_step_signature, 0, 10,time_step_speed))
             #input_captured[sequence_num] = input
 
             statistic_maps[sequence_num]=statistic_map
@@ -280,7 +292,7 @@ if __name__ == "__main__":
 
             #print(torch.nn.register_backward_hook(rnn))
 
-            print(str(index)+'  '+str(first_sample_lstm+sequence_num*time_step_vocabulary)+'-'+ str(first_sample_lstm+(sequence_num+1)*time_step_vocabulary)+' '+str("%.4f" %torch.sum(w_ii - u_ii).data[0]) + '  ' + str("%.4f" %torch.sum(w_if - u_if).data[0]) + '  ' + str(
+            print(str(index)+'  '+str(first_sample_lstm+sequence_num*time_step_speed*time_step_signature)+'-'+ str(first_sample_lstm+(sequence_num+1)*time_step_speed*time_step_signature)+' '+str("%.4f" %torch.sum(w_ii - u_ii).data[0]) + '  ' + str("%.4f" %torch.sum(w_if - u_if).data[0]) + '  ' + str(
                 "%.4f" %torch.sum(w_ic - u_ic).data[0]) + '  ' + str("%.4f" %torch.sum(w_io - u_io).data[0]) + '  ' + str(
                 "%.4f" %torch.sum(w_hi - u_hi).data[0]) + '  ' + str("%.4f" %torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
                 "%.4f" %torch.sum(w_hc - u_hc).data[0]) + '  ' + str("%.4f" %torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
@@ -298,7 +310,7 @@ if __name__ == "__main__":
             #plt.xlabel('Heatload')
             #plt.show()
 
-            if index==8000*int(index/8000):
+            if index==500*int(index/500):
                 plt.clf()
                 plt.axes([0.3, 0.3, 0.5, 0.5])
                 # plt.title ('iteration error for ' + str(5) +' max eigenvalues and eigenvectors')
@@ -322,8 +334,8 @@ if __name__ == "__main__":
 
             #for hn_i in range(0,sequence_len):print(torch.mean(output[hn_i]).data[0])
 
-        #torch.save(input_captured.byte(), '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_3time step.pt')
-        torch.save(target, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_3time step.pt')
+        torch.save(input_captured, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_2time step.pt')
+        torch.save(target, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_2time step.pt')
     else:
         input_captured=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_seq_100.pt').float()
         target=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_seq_100.pt')
@@ -405,8 +417,8 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
 
-            print(str(first_sample_lstm + sequence_num * time_step_vocabulary) + '-' + str(
-                first_sample_lstm + (sequence_num + 1) * time_step_vocabulary) + ' ' + str(
+            print(str(first_sample_lstm + sequence_num * time_step_speed*time_step_signature) + '-' + str(
+                first_sample_lstm + (sequence_num + 1) * time_step_speed*time_step_signature) + ' ' + str(
                 "%.4f" % torch.sum(w_ii - u_ii).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_if - u_if).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_ic - u_ic).data[0]) + '  ' + str(
