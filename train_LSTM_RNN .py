@@ -387,7 +387,7 @@ if __name__ == "__main__":
             b_hi, b_hf, b_hc, b_ho=rnn.bias_hh_l0.chunk(4, 0)
 
             loss = ((target[sequence_num]) - torch.max(hn * w_ho + b_ho)) ** 2
-            error[sequence_num] = loss.data[0]
+            error[index] = loss.data[0]
 
             loss.backward()
             optimizer.step()
