@@ -11,6 +11,22 @@ from picture_transformation import boundaries_detect_laplacian
 from picture_transformation import init_edge_feature_map_5x5
 from random import shuffle
 
+def captured_decomposer(input,feature_map,time_step_speed):
+
+    feature_amount = feature_map.shape[0]
+    number_steps_signature=input.data.shape[2]
+    j_range=input.data.shape[0]
+
+    one_dimension_result = torch.FloatTensor(input.data.shape[0], input.data.shape[1],(feature_amount ** time_step_speed) * number_steps_signature).zero_()
+
+    for j in range(0,j_range):
+        for signature_step in range(0,number_steps_signature):
+            one_dimension_result[j, 0, input.data[j,0,signature_step] + (feature_amount ** time_step_speed) * signature_step] = 1
+
+
+
+    return Variable(one_dimension_result)
+
 def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, from_layer, layers_by_wall, time_speed):
     """
     :param face_dataset: the video dataset like a group of a pictures
@@ -35,13 +51,13 @@ def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, f
 
 
     SummResult = torch.FloatTensor(feature_amount, layers_by_wall - from_layer, size_pic_X).zero_()
-    one_dimension_result = torch.FloatTensor(size_pic_X - feature_size_X, 1, (feature_amount**time_step_speed)*number_steps_signature).zero_()
+    one_dimension_result = torch.FloatTensor(size_pic_X - feature_size_X, 1, (feature_amount**time_speed)*number_steps_signature).zero_()
     heating_map_numpy = np.zeros(shape=(size_pic_Y, size_pic_X), dtype='int64')
     heating_map = torch.from_numpy(heating_map_numpy)
     statistic_map = np.zeros(shape=(j_range), dtype='int64')
     max_local = torch.FloatTensor(time_speed).zero_()
     max_local_number=torch.IntTensor(time_speed).zero_()
-    captured_features = torch.FloatTensor(size_pic_X - feature_size_X, 1, number_steps_signature).zero_()# (X, 1, nonzero elements number for every time step)
+    captured_features = torch.IntTensor(size_pic_X - feature_size_X, 1, number_steps_signature).zero_()# (X, 1, nonzero elements number for every time step)
 
     # here i find boundaries for 3 pictures
     t=boundaries_detect_laplacian(face_dataset[num_sample_from])/255
@@ -207,7 +223,7 @@ if __name__ == "__main__":
     time_step_speed=2# number of time steps to put into vocabulary(actially it is a function of the speed of the boundaries of a buble)
     time_step_signature=30# number of samples added to signature of state of boiling
 
-    number_of_samples_lstm=120000
+    number_of_samples_lstm=21*12000
     first_sample_lstm=28*12000 #63 * 12000
 
     number_of_sequences=int(math.floor(number_of_samples_lstm/(time_step_speed*time_step_signature)))
@@ -226,7 +242,7 @@ if __name__ == "__main__":
     # number of features input, number of features hidden layer ,2- number or recurent layers
     rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, hidden_layer, dropout=0.1)
     print(input.data.shape)
-    input_captured=Variable(torch.FloatTensor(number_of_sequences, capture_example.data.shape[0], capture_example.data.shape[1], capture_example.data.shape[2]))#tensor for repead using of captured feature
+    input_captured=Variable(torch.IntTensor(number_of_sequences, capture_example.data.shape[0], capture_example.data.shape[1], capture_example.data.shape[2]))#tensor for repead using of captured feature
     optimizer = torch.optim.Adadelta(rnn.parameters(), lr=0.1)
 
     h0 = torch.autograd.Variable(torch.FloatTensor(sequence_len,1,hidden_features))
@@ -310,7 +326,7 @@ if __name__ == "__main__":
             #plt.xlabel('Heatload')
             #plt.show()
 
-            if index==500*int(index/500):
+            if index==4000*int(index/4000):
                 plt.clf()
                 plt.axes([0.3, 0.3, 0.5, 0.5])
                 # plt.title ('iteration error for ' + str(5) +' max eigenvalues and eigenvectors')
@@ -334,56 +350,17 @@ if __name__ == "__main__":
 
             #for hn_i in range(0,sequence_len):print(torch.mean(output[hn_i]).data[0])
 
-        torch.save(input_captured, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_2time step.pt')
-        torch.save(target, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_2time step.pt')
+        torch.save(input_captured, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_2time_step.pt')
+        torch.save(target, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_2time_step.pt')
     else:
-        input_captured=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_seq_100.pt').float()
-        target=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_seq_100.pt')
+        input_captured=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_2time_step.pt').float()
+        target=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_2time_step.pt')
         print('this tensor is loaded from file')
         print(input_captured.shape)
         print('heat load')
         print(target.shape)
         print('load 1')
         print(target)
-
-    #model sequence 100 (every pixel calculated in 100 frames)
-    hidden_layer = 1
-    hidden_features = 1
-    sequence_len = 100
-    number_of_samples_lstm = 120000
-    first_sample_lstm = 28 * 12000  # 63 * 12000
-
-    number_of_sequences = int(math.floor(number_of_samples_lstm / sequence_len))
-
-    error = numpy.zeros(shape=(number_of_sequences), dtype='float32')
-
-    #target = torch.FloatTensor(number_of_sequences)
-    target=target/100000
-    input=input_captured[0]
-
-    # number of features input, number of features hidden layer ,2- number or recurent layers
-    rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, hidden_layer, dropout=0.1)
-    print(input.data.shape)
-    # input_captured=Variable(torch.FloatTensor(math.floor(number_of_samples_lstm/sequence_len), sequence_len, 1, input.data.shape[2]))#tensor for repead using of captured feature
-    optimizer = torch.optim.Adadelta(rnn.parameters(), lr=0.1)
-
-    h0 = torch.autograd.Variable(torch.FloatTensor(sequence_len, 1, hidden_features))
-    h0.data[0, 0, 0] = 0.01
-    c0 = torch.autograd.Variable(torch.FloatTensor(sequence_len, 1, hidden_features))
-    c0.data[0, 0, 0] = 0.01
-    output, (hn, cn) = rnn(input, (h0, c0))
-    print(output)
-
-    w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
-    w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
-    u_ii = w_ii.clone()
-    u_if = w_if.clone()
-    u_ic = w_ic.clone()
-    u_io = w_io.clone()
-    u_hi = w_hi.clone()
-    u_hf = w_hf.clone()
-    u_hc = w_hc.clone()
-    u_ho = w_ho.clone()
 
     #print('normalization')
     #for sequence_num in range(0, number_of_sequences):
@@ -401,9 +378,7 @@ if __name__ == "__main__":
 
         for index, sequence_num in enumerate(samples_indexes):
 
-            print(sequence_num)
-
-            input = input_captured[sequence_num]
+            input = captured_decomposer(input_captured[sequence_num],feature_map,time_step_speed)
 
             output, (hn, cn) = rnn(input, (h0, c0))
 
@@ -417,8 +392,10 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
 
-            print(str(first_sample_lstm + sequence_num * time_step_speed*time_step_signature) + '-' + str(
-                first_sample_lstm + (sequence_num + 1) * time_step_speed*time_step_signature) + ' ' + str(
+
+            print(str(index) + '  ' + str(
+                first_sample_lstm + sequence_num * time_step_speed * time_step_signature) + '-' + str(
+                first_sample_lstm + (sequence_num + 1) * time_step_speed * time_step_signature) + ' ' + str(
                 "%.4f" % torch.sum(w_ii - u_ii).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_if - u_if).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_ic - u_ic).data[0]) + '  ' + str(
@@ -427,8 +404,18 @@ if __name__ == "__main__":
                 "%.4f" % torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_hc - u_hc).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
-                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.max(hn).data[0]) + '   '+ str(torch.sum(input).data[0]) + '   heat='+str(target[sequence_num].data[0]))
+                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.max(hn).data[0]) + '   ' + str(
+                torch.sum(input).data[0]) + '   heat=' + str(100000 * target[sequence_num].data[0]))
 
+            if index==500*int(index/500):
+                plt.clf()
+                plt.axes([0.3, 0.3, 0.5, 0.5])
+                # plt.title ('iteration error for ' + str(5) +' max eigenvalues and eigenvectors')
+                plt.plot(error[0:index], 'k:', label='1')
+                plt.xlabel('Iteration')
+                plt.ylabel('error')
+                plt.legend()
+                plt.show()
             #for hn_i in range(0,sequence_len):print(torch.mean(output[hn_i]).data[0])
 
             u_ii = w_ii.clone()
@@ -441,6 +428,8 @@ if __name__ == "__main__":
             u_ho = w_ho.clone()
             output_prev=output.clone()
             optimizer.zero_grad()
+        # ... after training, save your model
+        rnn.save_state_dict('LSTM_'+str(repead+1)+'_learning 31_03_18.pt')
 
     print(u_ii)
     print(u_if)
@@ -454,9 +443,10 @@ if __name__ == "__main__":
 
     plt.clf()
     plt.axes([0.3, 0.3, 0.5, 0.5])
-    # plt.title ('iteration error for ' + str(5) +' max eigenvalues and eigenvectors')
+    plt.title ('Training iteration error')
     plt.plot(error, 'k:', label='1')
     plt.xlabel('Iteration')
     plt.ylabel('error')
     plt.legend()
     plt.show()
+
