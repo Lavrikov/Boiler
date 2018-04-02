@@ -4,7 +4,9 @@ import numpy
 from torch.autograd import Variable
 import numpy as np
 import math
-import random
+import datetime
+now = datetime.datetime.now()
+import os
 
 from frames_dataset import FramesDataset
 from picture_transformation import boundaries_detect_laplacian
@@ -12,7 +14,12 @@ from picture_transformation import init_edge_feature_map_5x5
 from random import shuffle
 
 def captured_decomposer(input,feature_map,time_step_speed):
-
+    #captured features are stored in memory in optimal format(as number of founded feature), decompozer create array named input (spare matrix) for sequensce
+    """
+    :param input: array of captured feature numbers for every x coordinat
+    :param feature_map: array of with feature map 1 dimension-number of temple, 2-3 dimentions size temple of picture
+    :param time_step_speed: number of consistently frame to create dictionary
+    """
     feature_amount = feature_map.shape[0]
     number_steps_signature=input.data.shape[2]
     j_range=input.data.shape[0]
@@ -218,7 +225,7 @@ if __name__ == "__main__":
     # The structure of paramenters LSTM(lenght of array with features=big value, number of heatures in output can be lower and higer than in input- how mach i want, number of layer in recurent model)
 
     #model time step (sequense is a pixels during X-axis on 3 time step frames)
-    hidden_layer=1
+    hidden_layer=2
     hidden_features=1
     time_step_speed=2# number of time steps to put into vocabulary(actially it is a function of the speed of the boundaries of a buble)
     time_step_signature=30# number of samples added to signature of state of boiling
@@ -232,6 +239,7 @@ if __name__ == "__main__":
 
     sequence_len = input.data.shape[0]# number of pixelx by X of picture
     error=numpy.zeros(shape=(number_of_sequences), dtype='float32')
+    error_by_heat=numpy.zeros(shape=(number_of_sequences), dtype='float32')
     statistic_maps=np.zeros(shape=(number_of_sequences, statistic_map.shape[0]), dtype='int64')
     heat_statistics=np.zeros(shape=(number_of_sequences, statistic_map.shape[0]), dtype='int64')
 
@@ -241,6 +249,8 @@ if __name__ == "__main__":
 
     # number of features input, number of features hidden layer ,2- number or recurent layers
     rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, hidden_layer, dropout=0.1)
+    ln=torch.nn.Linear(hidden_features,hidden_features)
+
     print(input.data.shape)
     input_captured=Variable(torch.IntTensor(number_of_sequences, capture_example.data.shape[0], capture_example.data.shape[1], capture_example.data.shape[2]))#tensor for repead using of captured feature
     optimizer = torch.optim.Adadelta(rnn.parameters(), lr=0.1)
@@ -254,6 +264,16 @@ if __name__ == "__main__":
 
     w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
     w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
+    #first layer LSTM
+    u_ii0 = w_ii.clone()
+    u_if0 = w_if.clone()
+    u_ic0 = w_ic.clone()
+    u_io0 = w_io.clone()
+    u_hi0 = w_hi.clone()
+    u_hf0 = w_hf.clone()
+    u_hc0 = w_hc.clone()
+    u_ho0 = w_ho.clone()
+    #second layer LSTM
     u_ii = w_ii.clone()
     u_if = w_if.clone()
     u_ic = w_ic.clone()
@@ -264,7 +284,7 @@ if __name__ == "__main__":
     u_ho = w_ho.clone()
 
 
-    from_video='true'
+    from_video='false'
     if from_video=='true':
 
         #here i create a tensor with heatload for a loss function
@@ -353,7 +373,7 @@ if __name__ == "__main__":
         torch.save(input_captured, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_2time_step.pt')
         torch.save(target, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_2time_step.pt')
     else:
-        input_captured=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_2time_step.pt').float()
+        input_captured=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_2time_step.pt')
         target=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_2time_step.pt')
         print('this tensor is loaded from file')
         print(input_captured.shape)
@@ -366,11 +386,11 @@ if __name__ == "__main__":
     #for sequence_num in range(0, number_of_sequences):
     #    print(sequence_num)
     #    input_captured[sequence_num]=input_captured[sequence_num]/torch.max(input_captured[sequence_num])
-
+    steps_to_print=number_of_sequences-1
     print('learning started')
         # repead cycle by all samples
-    for repead in range(0,10):
-        print('repeat'+str(repead))
+    for era in range(0,10):
+        print('learning era'+str(era+1))
 
         samples_indexes = [i for i in range(0, number_of_sequences)]  # A list contains all shuffled requires numbers
         shuffle(samples_indexes)
@@ -382,16 +402,32 @@ if __name__ == "__main__":
 
             output, (hn, cn) = rnn(input, (h0, c0))
 
-            w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
-            w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
-            b_hi, b_hf, b_hc, b_ho=rnn.bias_hh_l0.chunk(4, 0)
+            w_ii0, w_if0, w_ic0, w_io0 = rnn.weight_ih_l0.chunk(4, 0)
+            w_hi0, w_hf0, w_hc0, w_ho0 = rnn.weight_hh_l0.chunk(4, 0)
 
-            loss = ((target[sequence_num]) - torch.max(hn * w_ho + b_ho)) ** 2
+            w_ii, w_if, w_ic, w_io = rnn.weight_ih_l1.chunk(4, 0)
+            w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l1.chunk(4, 0)
+            b_hi, b_hf, b_hc, b_ho=rnn.bias_hh_l1.chunk(4, 0)
+
+            loss = ((target[sequence_num]) - (hn[-1]*w_ho+b_ho)) ** 2
             error[index] = loss.data[0]
+            error_by_heat[sequence_num] = ((target[sequence_num]) - (hn[-1]*w_ho+b_ho))
 
             loss.backward()
             optimizer.step()
 
+
+            print(str(index) + '  ' + str(
+                first_sample_lstm + sequence_num * time_step_speed * time_step_signature) + '-' + str(
+                first_sample_lstm + (sequence_num + 1) * time_step_speed * time_step_signature) + ' ' + str(
+                "%.4f" % torch.sum(w_ii0 - u_ii0).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_if0 - u_if0).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_ic0 - u_ic0).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_io0 - u_io0).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_hi0 - u_hi0).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_hf0 - u_hf0).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_hc0 - u_hc0).data[0]) + '  ' + str(
+                "%.4f" % torch.sum(w_ho0 - u_ho0).data[0]) +'  out h0 ' + str("%.4f" % torch.max(hn[0]).data[0]) )
 
             print(str(index) + '  ' + str(
                 first_sample_lstm + sequence_num * time_step_speed * time_step_signature) + '-' + str(
@@ -403,20 +439,41 @@ if __name__ == "__main__":
                 "%.4f" % torch.sum(w_hi - u_hi).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
                 "%.4f" % torch.sum(w_hc - u_hc).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
-                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.max(hn).data[0]) + '   ' + str(
-                torch.sum(input).data[0]) + '   heat=' + str(100000 * target[sequence_num].data[0]))
+                "%.4f" % torch.sum(w_ho - u_ho).data[0])  + '  out h1 ' + str("%.4f" % torch.max(hn[-1]).data[0]) + '   ' + str(
+                torch.sum(input).data[0]) + '   heat=' + str("%.1f" %(100000 * target[sequence_num].data[0]))+ '  loss=' + str(
+                "%.4f" % loss.data[0]))
 
-            if index==500*int(index/500):
+            if index==steps_to_print*int(index/steps_to_print):
                 plt.clf()
                 plt.axes([0.3, 0.3, 0.5, 0.5])
-                # plt.title ('iteration error for ' + str(5) +' max eigenvalues and eigenvectors')
-                plt.plot(error[0:index], 'k:', label='1')
+                plt.title ('iteration error is arranged by index,2 layer LSTM, learning era'+str(era+1))
+                plt.plot(error, 'k:', label='1')
                 plt.xlabel('Iteration')
                 plt.ylabel('error')
                 plt.legend()
-                plt.show()
-            #for hn_i in range(0,sequence_len):print(torch.mean(output[hn_i]).data[0])
+                basePath = os.path.dirname(os.path.abspath(__file__))
+                results_dir = basePath+ '/Models/LSTM/02_04_18_X-Time/'
+                sample_file_name = 'Error_' + str(steps_to_print) + '_steps_era_'+str(era)+'.png'
+                plt.savefig(results_dir + sample_file_name)
+
+                plt.clf()
+                plt.axes([0.3, 0.3, 0.5, 0.5])
+                plt.title ('iteration error is arranged by heat load,2 layer LSTM, learning era'+str(era+1))
+                plt.plot(error_by_heat, 'k:', label='1')
+                plt.xlabel('Heat load')
+                plt.ylabel('error')
+                plt.legend()
+                sample_file_name = 'Error_arranged_by_load' + str(steps_to_print) + '_steps_era_'+str(era)+'.png'
+                plt.savefig(results_dir + sample_file_name)
+
+            u_ii0 = w_ii0.clone()
+            u_if0 = w_if0.clone()
+            u_ic0 = w_ic0.clone()
+            u_io0 = w_io0.clone()
+            u_hi0 = w_hi0.clone()
+            u_hf0 = w_hf0.clone()
+            u_hc0 = w_hc0.clone()
+            u_ho0 = w_ho0.clone()
 
             u_ii = w_ii.clone()
             u_if = w_if.clone()
@@ -429,7 +486,7 @@ if __name__ == "__main__":
             output_prev=output.clone()
             optimizer.zero_grad()
         # ... after training, save your model
-        rnn.save_state_dict('LSTM_'+str(repead+1)+'_learning 31_03_18.pt')
+        #rnn.save_state_dict('LSTM_'+str(repead+1)+'_learning 31_03_18.pt')
 
     print(u_ii)
     print(u_if)
@@ -443,8 +500,17 @@ if __name__ == "__main__":
 
     plt.clf()
     plt.axes([0.3, 0.3, 0.5, 0.5])
-    plt.title ('Training iteration error')
+    plt.title('iteration error by index, learning era' + str(repead + 1))
     plt.plot(error, 'k:', label='1')
+    plt.xlabel('Iteration')
+    plt.ylabel('error')
+    plt.legend()
+    plt.show()
+
+    plt.clf()
+    plt.axes([0.3, 0.3, 0.5, 0.5])
+    plt.title('iteration error heat loads, learning era' + str(repead + 1))
+    plt.plot(error_by_heat, 'k:', label='1')
     plt.xlabel('Iteration')
     plt.ylabel('error')
     plt.legend()
