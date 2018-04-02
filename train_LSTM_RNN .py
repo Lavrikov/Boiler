@@ -446,10 +446,10 @@ if __name__ == "__main__":
             if index==steps_to_print*int(index/steps_to_print):
                 plt.clf()
                 plt.axes([0.3, 0.3, 0.5, 0.5])
-                plt.title ('iteration error is arranged by index,2 layer LSTM, learning era'+str(era+1))
+                plt.title ('iteration loss is arranged by index,2 layer LSTM, learning era'+str(era+1))
                 plt.plot(error, 'k:', label='1')
                 plt.xlabel('Iteration')
-                plt.ylabel('error')
+                plt.ylabel('loss')
                 plt.legend()
                 basePath = os.path.dirname(os.path.abspath(__file__))
                 results_dir = basePath+ '/Models/LSTM/02_04_18_X-Time/'
