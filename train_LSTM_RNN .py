@@ -187,14 +187,13 @@ if __name__ == "__main__":
 
 
     #here i load the video dataset like a group of a pictures
-    face_dataset = FramesDataset('file:///media/aleksandr/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/aleksandr/Files/@Machine/Github/Boiler/train')
+    face_dataset = FramesDataset('file:///media/alexander/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/alexander/Files/@Machine/Github/Boiler/train')
     #face_dataset = FramesDataset('./train/annotations.csv', './train')
     print('dataset is loaded')
     #here i init feature map and put it to the videomemory(.cuda)
     feature_map = init_edge_feature_map_5x5()
     if torch.cuda.is_available():
         feature_map.cuda()
-
 
     test='true'
     if test=='true':
@@ -249,11 +248,14 @@ if __name__ == "__main__":
 
     # number of features input, number of features hidden layer ,2- number or recurent layers
     rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, hidden_layer, dropout=0.1)
-    ln=torch.nn.Linear(hidden_features,hidden_features)
+    ln1=torch.nn.Linear(input.data.shape[2],100)
+    ln2 = torch.nn.Linear(100, hidden_features)
 
     print(input.data.shape)
     input_captured=Variable(torch.IntTensor(number_of_sequences, capture_example.data.shape[0], capture_example.data.shape[1], capture_example.data.shape[2]))#tensor for repead using of captured feature
-    optimizer = torch.optim.Adadelta(rnn.parameters(), lr=0.1)
+    optimizer1 = torch.optim.Adadelta(ln1.parameters(), lr=0.001)
+    optimizer2 = torch.optim.Adadelta(ln2.parameters(), lr=0.001)
+
 
     h0 = torch.autograd.Variable(torch.FloatTensor(sequence_len,1,hidden_features))
     h0.data[0,0,0]=0.01
@@ -324,7 +326,7 @@ if __name__ == "__main__":
             error[index]=loss.data[0]
 
             loss.backward()
-            optimizer.step()
+            optimizer1.step()
 
             #print(torch.nn.register_backward_hook(rnn))
 
@@ -366,15 +368,15 @@ if __name__ == "__main__":
             u_hc = w_hc.clone()
             u_ho = w_ho.clone()
 
-            optimizer.zero_grad()
+            optimizer1.zero_grad()
 
             #for hn_i in range(0,sequence_len):print(torch.mean(output[hn_i]).data[0])
 
-        torch.save(input_captured, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_2time_step.pt')
-        torch.save(target, '/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_2time_step.pt')
+        torch.save(input_captured, '/media/alexander/Files/@Machine/Github/Boiler/boiling_train_2time_step.pt')
+        torch.save(target, '/media/alexander/Files/@Machine/Github/Boiler/boiling_train_heatload_2time_step.pt')
     else:
-        input_captured=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_2time_step.pt')
-        target=torch.load('/media/aleksandr/Files/@Machine/Github/Boiler/boiling_train_heatload_2time_step.pt')
+        input_captured=torch.load('/media/alexander/Files/@Machine/Github/Boiler/boiling_train_2time_step.pt')
+        target=torch.load('/media/alexander/Files/@Machine/Github/Boiler/boiling_train_heatload_2time_step.pt')
         print('this tensor is loaded from file')
         print(input_captured.shape)
         print('heat load')
@@ -400,92 +402,54 @@ if __name__ == "__main__":
 
             input = captured_decomposer(input_captured[sequence_num],feature_map,time_step_speed)
 
-            output, (hn, cn) = rnn(input, (h0, c0))
+            output= ln1(input)
+            output=ln2(output)
 
-            w_ii0, w_if0, w_ic0, w_io0 = rnn.weight_ih_l0.chunk(4, 0)
-            w_hi0, w_hf0, w_hc0, w_ho0 = rnn.weight_hh_l0.chunk(4, 0)
 
-            w_ii, w_if, w_ic, w_io = rnn.weight_ih_l1.chunk(4, 0)
-            w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l1.chunk(4, 0)
-            b_hi, b_hf, b_hc, b_ho=rnn.bias_hh_l1.chunk(4, 0)
-
-            loss = ((target[sequence_num]) - (hn[-1]*w_ho+b_ho)) ** 2
+            loss = ((target[sequence_num]) - torch.sum(output)) ** 2
             error[index] = loss.data[0]
-            error_by_heat[sequence_num] = ((target[sequence_num]) - (hn[-1]*w_ho+b_ho))
+            error_by_heat[sequence_num] = ((target[sequence_num]) - torch.sum(output))
 
             loss.backward()
-            optimizer.step()
+            optimizer1.step()
+            optimizer2.step()
+
+
 
 
             print(str(index) + '  ' + str(
                 first_sample_lstm + sequence_num * time_step_speed * time_step_signature) + '-' + str(
-                first_sample_lstm + (sequence_num + 1) * time_step_speed * time_step_signature) + ' ' + str(
-                "%.4f" % torch.sum(w_ii0 - u_ii0).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_if0 - u_if0).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_ic0 - u_ic0).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_io0 - u_io0).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_hi0 - u_hi0).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_hf0 - u_hf0).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_hc0 - u_hc0).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_ho0 - u_ho0).data[0]) +'  out h0 ' + str("%.4f" % torch.max(hn[0]).data[0]) )
-
-            print(str(index) + '  ' + str(
-                first_sample_lstm + sequence_num * time_step_speed * time_step_signature) + '-' + str(
-                first_sample_lstm + (sequence_num + 1) * time_step_speed * time_step_signature) + ' ' + str(
-                "%.4f" % torch.sum(w_ii - u_ii).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_if - u_if).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_ic - u_ic).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_io - u_io).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_hi - u_hi).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_hc - u_hc).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_ho - u_ho).data[0])  + '  out h1 ' + str("%.4f" % torch.max(hn[-1]).data[0]) + '   ' + str(
+                first_sample_lstm + (sequence_num + 1) * time_step_speed * time_step_signature) + ' ' + '  out ' + str("%.4f" % torch.sum(output).data[0]) + '   ' + str(
                 torch.sum(input).data[0]) + '   heat=' + str("%.1f" %(100000 * target[sequence_num].data[0]))+ '  loss=' + str(
                 "%.4f" % loss.data[0]))
 
             if index==steps_to_print*int(index/steps_to_print):
                 plt.clf()
                 plt.axes([0.3, 0.3, 0.5, 0.5])
-                plt.title ('iteration loss is arranged by index,2 layer LSTM, learning era'+str(era+1))
+                plt.title ('iteration loss is arranged by index, 2 layer Linear, learning era'+str(era+1))
                 plt.plot(error, 'k:', label='1')
                 plt.xlabel('Iteration')
                 plt.ylabel('loss')
                 plt.legend()
                 basePath = os.path.dirname(os.path.abspath(__file__))
-                results_dir = basePath+ '/Models/LSTM/02_04_18_X-Time/'
-                sample_file_name = 'Error_' + str(steps_to_print) + '_steps_era_'+str(era)+'.png'
+                results_dir = basePath+ '/Models/LSTM/05_04_18_X-Time/'
+                sample_file_name = 'Error_linear2layer_' + str(steps_to_print) + '_steps_era_'+str(era)+'.png'
                 plt.savefig(results_dir + sample_file_name)
 
                 plt.clf()
                 plt.axes([0.3, 0.3, 0.5, 0.5])
-                plt.title ('iteration error is arranged by heat load,2 layer LSTM, learning era'+str(era+1))
+                plt.title ('iteration error is arranged by heat load, 2 layer Linear, learning era'+str(era+1))
                 plt.plot(error_by_heat, 'k:', label='1')
                 plt.xlabel('Heat load')
                 plt.ylabel('error')
                 plt.legend()
-                sample_file_name = 'Error_arranged_by_load' + str(steps_to_print) + '_steps_era_'+str(era)+'.png'
+                sample_file_name = 'Error_linear_arranged_by_load' + str(steps_to_print) + '_steps_era_'+str(era)+'.png'
                 plt.savefig(results_dir + sample_file_name)
 
-            u_ii0 = w_ii0.clone()
-            u_if0 = w_if0.clone()
-            u_ic0 = w_ic0.clone()
-            u_io0 = w_io0.clone()
-            u_hi0 = w_hi0.clone()
-            u_hf0 = w_hf0.clone()
-            u_hc0 = w_hc0.clone()
-            u_ho0 = w_ho0.clone()
+            optimizer1.zero_grad()
+            optimizer2.zero_grad()
 
-            u_ii = w_ii.clone()
-            u_if = w_if.clone()
-            u_ic = w_ic.clone()
-            u_io = w_io.clone()
-            u_hi = w_hi.clone()
-            u_hf = w_hf.clone()
-            u_hc = w_hc.clone()
-            u_ho = w_ho.clone()
-            output_prev=output.clone()
-            optimizer.zero_grad()
-        # ... after training, save your model
+             # ... after training, save your model
         #rnn.save_state_dict('LSTM_'+str(repead+1)+'_learning 31_03_18.pt')
 
     print(u_ii)
@@ -500,7 +464,7 @@ if __name__ == "__main__":
 
     plt.clf()
     plt.axes([0.3, 0.3, 0.5, 0.5])
-    plt.title('iteration error by index, learning era' + str(repead + 1))
+    plt.title('iteration error by index, learning era' + str(era + 1))
     plt.plot(error, 'k:', label='1')
     plt.xlabel('Iteration')
     plt.ylabel('error')
@@ -509,7 +473,7 @@ if __name__ == "__main__":
 
     plt.clf()
     plt.axes([0.3, 0.3, 0.5, 0.5])
-    plt.title('iteration error heat loads, learning era' + str(repead + 1))
+    plt.title('iteration error heat loads, learning era' + str(era + 1))
     plt.plot(error_by_heat, 'k:', label='1')
     plt.xlabel('Iteration')
     plt.ylabel('error')
