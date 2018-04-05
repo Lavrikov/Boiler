@@ -36,6 +36,7 @@ class FramesDataset(Dataset):
     @staticmethod
     def get_frames_count(root_dir, filename):
         filepath = os.path.join(root_dir, filename)
+        print(filepath)
         cap = cv2.VideoCapture(filepath)
         if cap.isOpened():
             return int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -52,6 +53,10 @@ class FramesDataset(Dataset):
         frame_index = idx - videofile['start_frame_index'].values[0]
 
         if filename not in self.videos_cache:
+
+            #here i add instuction to del all cached video exept new one
+            if len(self.videos_cache.keys()) > 0: del self.videos_cache[list(self.videos_cache.keys())[0]]
+
             self.videos_cache[filename] = dict()
 
             filepath = os.path.join(self.root_dir, filename)
@@ -62,7 +67,7 @@ class FramesDataset(Dataset):
             while success:
                 success, frame = cap.read()
                 if frame is not None:
-                    self.videos_cache[filename][i] = frame[:, :, 0]
+                    self.videos_cache[filename][i] = frame[-17:-1, :, 0]#-11:-1 desrease the vertical size of the image
                     i += 1
             cap.release()
 
@@ -76,7 +81,10 @@ class FramesDataset(Dataset):
         return sample
 
 
+
 if __name__ == "__main__":
-    frames_dataset = FramesDataset('./train/annotations.csv', './train')
-    print(frames_dataset.__getitem__(1000))
+    frames_dataset = FramesDataset('file:///media/aleksandr/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/aleksandr/Files/@Machine/Github/Boiler/train')
+    print(frames_dataset.__getitem__(360000))
+
+
 

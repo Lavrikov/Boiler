@@ -99,4 +99,21 @@ ENV/
 
 # mypy
 .mypy_cache/
+*.jpeg
 *.avi
+.idea/workspace.xml
+.idea/workspace.xml
+.idea/workspace.xml
+.idea/Boiler.iml
+.idea/misc.xml
+.idea/modules.xml
+.idea/workspace.xml
+.idea/Boiler.iml
+.idea/misc.xml
+.idea/modules.xml
+.idea/workspace.xml
+train/annotations.csv
+.idea/workspace.xml
+.idea/workspace.xml
+.idea/workspace.xml
+.idea/workspace.xml
