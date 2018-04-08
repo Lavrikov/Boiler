@@ -229,6 +229,7 @@ if __name__ == "__main__":
     time_step_speed=2# number of time steps to put into vocabulary(actially it is a function of the speed of the boundaries of a buble)
     time_step_signature=30# number of samples added to signature of state of boiling
 
+
     number_of_samples_lstm=21*12000
     first_sample_lstm=28*12000 #63 * 12000
 
@@ -243,7 +244,7 @@ if __name__ == "__main__":
     heat_statistics=np.zeros(shape=(number_of_sequences, statistic_map.shape[0]), dtype='int64')
 
     print('input 0')
-    print(input)
+
     target=torch.FloatTensor(number_of_sequences)
 
     # number of features input, number of features hidden layer ,2- number or recurent layers
@@ -384,10 +385,39 @@ if __name__ == "__main__":
         print('load 1')
         print(target)
 
-    #print('normalization')
-    #for sequence_num in range(0, number_of_sequences):
-    #    print(sequence_num)
-    #    input_captured[sequence_num]=input_captured[sequence_num]/torch.max(input_captured[sequence_num])
+
+    number_of_seq_together=10 #number of sequences by time_step_signature added to one sequence for reusing code
+    number_of_new_sequences=int(math.floor(number_of_sequences/number_of_seq_together))#number of sequrnces after adding seq to one
+    new_input_captured=Variable(torch.IntTensor(number_of_new_sequences, input_captured.data.shape[1], input_captured.data.shape[2], input_captured.data.shape[3]*number_of_seq_together))#tensor for repead using of captured feature
+    new_target=Variable(torch.FloatTensor(number_of_new_sequences))
+    error=numpy.zeros(shape=(number_of_new_sequences), dtype='float32')
+    error_by_heat=numpy.zeros(shape=(number_of_new_sequences), dtype='float32')
+
+    print('changing size')
+    #here i change size of one sequence
+    for new_sequences in range(0,number_of_new_sequences):
+        new_target[new_sequences]=target[new_sequences*number_of_seq_together]
+        print('new_sequence'+str(new_sequences))
+        seq_from=new_sequences*number_of_seq_together
+        seq_to=(new_sequences+1)*number_of_seq_together
+        for sequence in range (seq_from, seq_to):
+            for j in range (0,new_input_captured.data.shape[1]):
+                for feature in range(0, input_captured.data.shape[3]):
+                    a=input_captured.data[sequence,j,0,feature]
+                    new_input_captured.data[new_sequences,j,0,(sequence-seq_from)*input_captured.data.shape[3]+feature]=a
+
+    print(new_input_captured[10,0,0])
+    print(input_captured[100,0,0])
+    input_captured=new_input_captured
+    target=new_target
+    number_of_sequences=number_of_new_sequences
+
+    input = captured_decomposer(input_captured[0], feature_map, time_step_speed)
+
+    ln1=torch.nn.Linear(input.data.shape[2],100)
+    ln2 = torch.nn.Linear(100, hidden_features)
+
+
     steps_to_print=number_of_sequences-1
     print('learning started')
         # repead cycle by all samples
@@ -426,19 +456,19 @@ if __name__ == "__main__":
             if index==steps_to_print*int(index/steps_to_print):
                 plt.clf()
                 plt.axes([0.3, 0.3, 0.5, 0.5])
-                plt.title ('iteration loss is arranged by index, 2 layer Linear, learning era'+str(era+1))
+                plt.title ('iteration loss is arranged by index,300 times 2 layer Linear, learning era'+str(era+1))
                 plt.plot(error, 'k:', label='1')
                 plt.xlabel('Iteration')
                 plt.ylabel('loss')
                 plt.legend()
                 basePath = os.path.dirname(os.path.abspath(__file__))
-                results_dir = basePath+ '/Models/LSTM/05_04_18_X-Time/'
+                results_dir = basePath+ '/Models/LSTM/07_04_18_X-Time/'
                 sample_file_name = 'Error_linear2layer_' + str(steps_to_print) + '_steps_era_'+str(era)+'.png'
                 plt.savefig(results_dir + sample_file_name)
 
                 plt.clf()
                 plt.axes([0.3, 0.3, 0.5, 0.5])
-                plt.title ('iteration error is arranged by heat load, 2 layer Linear, learning era'+str(era+1))
+                plt.title ('iteration error is arranged by heat load,300 times 2 layer Linear, learning era'+str(era+1))
                 plt.plot(error_by_heat, 'k:', label='1')
                 plt.xlabel('Heat load')
                 plt.ylabel('error')
