@@ -392,6 +392,7 @@ if __name__ == "__main__":
     new_target=Variable(torch.FloatTensor(number_of_new_sequences))
     error=numpy.zeros(shape=(number_of_new_sequences), dtype='float32')
     error_by_heat=numpy.zeros(shape=(number_of_new_sequences), dtype='float32')
+    zero_load_repeat=5
 
     print('changing size')
     #here i change size of one sequence
@@ -414,8 +415,13 @@ if __name__ == "__main__":
 
     input = captured_decomposer(input_captured[0], feature_map, time_step_speed)
 
+    rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, hidden_layer, dropout=0.1)
     ln1=torch.nn.Linear(input.data.shape[2],100)
-    ln2 = torch.nn.Linear(100, hidden_features)
+    ln2=torch.nn.Linear(100,1)
+    optimizer1 = torch.optim.Adadelta(ln1.parameters(), lr=0.001)
+    optimizer2 = torch.optim.Adadelta(ln2.parameters(), lr=0.001)
+    optimizerLSTM=torch.optim.Adadelta(rnn.parameters(), lr=0.001)
+
 
 
     steps_to_print=number_of_sequences-1
@@ -430,11 +436,10 @@ if __name__ == "__main__":
 
         for index, sequence_num in enumerate(samples_indexes):
 
-            input = captured_decomposer(input_captured[sequence_num],feature_map,time_step_speed)
+            input = captured_decomposer(input_captured[sequence_num], feature_map, time_step_speed)
 
-            output= ln1(input)
-            output=ln2(output)
-
+            output = ln1(input)
+            output = ln2(output)
 
             loss = ((target[sequence_num]) - torch.sum(output)) ** 2
             error[index] = loss.data[0]
@@ -443,7 +448,34 @@ if __name__ == "__main__":
             loss.backward()
             optimizer1.step()
             optimizer2.step()
+            optimizer1.zero_grad()
+            optimizer2.zero_grad()
 
+
+            #here i repeat passing through zero load elements, to increase their weight at the all data
+            if target.data[sequence_num]==0 :
+                for zero_repeat in range(0,zero_load_repeat):
+
+                    output = ln1(input)
+                    output = ln2(output)
+                    loss = ((target[sequence_num]) - torch.sum(output)) ** 2
+                    error[index] = loss.data[0]
+                    error_by_heat[sequence_num] = ((target[sequence_num]) - torch.sum(output))
+
+                    loss.backward()
+                    optimizer1.step()
+                    optimizer2.step()
+
+                    optimizer1.zero_grad()
+                    optimizer2.zero_grad()
+
+                    print(str(index) + '  ' + str(
+                        first_sample_lstm + sequence_num * time_step_speed * time_step_signature) + '-' + str(
+                        first_sample_lstm + (
+                                    sequence_num + 1) * time_step_speed * time_step_signature) + ' ' + '  out ' + str(
+                        "%.4f" % torch.sum(output).data[0]) + '   ' + str(
+                        torch.sum(input).data[0]) + '   heat=' + str(
+                        "%.1f" % (100000 * target[sequence_num].data[0])) + '  loss=' + str("%.4f" % loss.data[0]))
 
 
 
@@ -456,28 +488,28 @@ if __name__ == "__main__":
             if index==steps_to_print*int(index/steps_to_print):
                 plt.clf()
                 plt.axes([0.3, 0.3, 0.5, 0.5])
-                plt.title ('iteration loss is arranged by index,300 times 2 layer Linear, learning era'+str(era+1))
+                plt.title ('iteration loss(index),300 times 2 layer Linear,*5 zero load, era'+str(era+1))
                 plt.plot(error, 'k:', label='1')
                 plt.xlabel('Iteration')
                 plt.ylabel('loss')
                 plt.legend()
                 basePath = os.path.dirname(os.path.abspath(__file__))
-                results_dir = basePath+ '/Models/LSTM/07_04_18_X-Time/'
-                sample_file_name = 'Error_linear2layer_' + str(steps_to_print) + '_steps_era_'+str(era)+'.png'
+                results_dir = basePath+ '/Models/LSTM/08_04_18_X-Time/'
+                sample_file_name = 'x5 Error_linear2layer_' + str(steps_to_print) + '_steps_era_'+str(era)+'.png'
                 plt.savefig(results_dir + sample_file_name)
 
                 plt.clf()
                 plt.axes([0.3, 0.3, 0.5, 0.5])
-                plt.title ('iteration error is arranged by heat load,300 times 2 layer Linear, learning era'+str(era+1))
+                plt.title ('iteration error (heat),300 times 2 layer Linear,*5 zero load, era'+str(era+1))
                 plt.plot(error_by_heat, 'k:', label='1')
                 plt.xlabel('Heat load')
                 plt.ylabel('error')
                 plt.legend()
-                sample_file_name = 'Error_linear_arranged_by_load' + str(steps_to_print) + '_steps_era_'+str(era)+'.png'
+                sample_file_name = 'x5 Error_linear_arranged_by_load' + str(steps_to_print) + '_steps_era_'+str(era)+'.png'
                 plt.savefig(results_dir + sample_file_name)
 
-            optimizer1.zero_grad()
-            optimizer2.zero_grad()
+
+
 
              # ... after training, save your model
         #rnn.save_state_dict('LSTM_'+str(repead+1)+'_learning 31_03_18.pt')
