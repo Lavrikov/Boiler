@@ -120,6 +120,31 @@ def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, f
                                     max_local[num_sample_in - num_sample_local_from] = SummResult[k, i, j]
                                     max_local_number[num_sample_in - num_sample_local_from] = k
 
+                                    # one_dimension_result=m_pool_1d(one_dimension_result)
+                                    test = 'true'
+                                    if test == 'true' and (num_sample_in - num_sample_from)==47:
+
+                                        # here i show results of feature_map impacting
+                                        fig = plt.figure()
+                                        ax = plt.subplot(2, 1, 1)  # coordinates
+                                        plt.tight_layout()
+                                        ax.set_title('Sample boundaries #{}' + str(num_sample_in - num_sample_from)+ ' x=' + str(j))
+                                        ax.axis('off')
+                                        plt.imshow(BinareFilterSample[num_sample_in - num_sample_from], 'gray')
+                                        ax = plt.subplot(2, 1, 2)  # coordinates
+                                        plt.tight_layout()
+                                        ax.set_title('Heating map' + str(num_sample_in))
+                                        ax.axis('off')
+                                        # print(SummResult)
+                                        # show the results finded feature
+                                        heating_map[:, x1:x2].zero_()
+                                        heating_map[y1:y2, x1:x2]=feature_map[k]
+                                        plt.imshow(heating_map, 'magma_r')
+                                        plt.show()
+
+
+
+
             # here i calculate adress of nonzero element #k * k_range* k_range + i * k_range + j
             nonzero_number = 0
             for num_sample_in in range(num_sample_local_from, num_sample_local_to):
@@ -134,24 +159,7 @@ def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, f
                     j, 0, signature_step] = nonzero_number  # here i save captured number to reuse it after saving to file (nonzero number this is combination of two feature form two samples in the x coordinate
 
 
-    #one_dimension_result=m_pool_1d(one_dimension_result)
-    test='false'
-    if test=='true':
-        # here i show results of feature_map impacting
-        fig = plt.figure()
-        ax = plt.subplot(2, 1, 1)  # coordinates
-        plt.tight_layout()
-        ax.set_title('Sample boundaries #{}'+str(num_sample_in))
-        ax.axis('off')
-        plt.imshow(BinareFilterSample, 'gray')
-        ax = plt.subplot(2, 1, 2)  # coordinates
-        plt.tight_layout()
-        ax.set_title('Heating map'+str(num_sample_in))
-        ax.axis('off')
-        # print(SummResult)
-        # show the statistic matrix
-        plt.imshow(heating_map, 'gray')
-        plt.show()
+
 
     return SummResult, Variable(one_dimension_result), statistic_map, Variable(captured_features)
 
@@ -227,11 +235,11 @@ def batch_capture_extract(face_dataset, feature_file_name):
         print (sequence_num)
         SummResult, input, statistic_map, input_captured[sequence_num] = (capture_feature(face_dataset, feature_map, first_sample_lstm + sequence_num * time_step_speed * time_step_signature,first_sample_lstm + (sequence_num + 1) * time_step_speed * time_step_signature,0, 10, time_step_speed, x_max_pool))
 
-    torch.save(input_captured, '/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_' + feature_file_name + '2time_step.pt')
+    #torch.save(input_captured, '/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_' + feature_file_name + '2time_step.pt')
     print('feature saved')
     print('/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_' + feature_file_name + '2time_step.pt')
 
-    torch.save(target, '/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_heatload_' + feature_file_name + 'time_step.pt')
+    #torch.save(target, '/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_heatload_' + feature_file_name + 'time_step.pt')
     print('target saved')
     print('/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_heatload_' + feature_file_name + 'time_step.pt')
 
@@ -265,11 +273,20 @@ if __name__ == "__main__":
     print('dataset is loaded')
     test_dataset(face_dataset)
 
-    #feature_map_len, number_of_sequences = batch_capture_extract(face_dataset, 'max_pool_10')
+    #here i generate new file with captured features
+    feature_map_len, number_of_sequences = batch_capture_extract(face_dataset, 'max_pool_10')
 
     #here i load data with captured features from file
-    input_captured=torch.load('/media/alexander/Files/@Machine/Github/Boiler/boiling_train_max_pool_102time_step.pt')
-    target=torch.load('/media/alexander/Files/@Machine/Github/Boiler/boiling_train_heatload_2max_pool_10time_step.pt')
+    run_key='validation'
+    if run_key=='train':
+        input_file_name = '/media/alexander/Files/@Machine/Github/Boiler/boiling_train_max_pool_102time_step.pt'
+        input_load_file_name='/media/alexander/Files/@Machine/Github/Boiler/boiling_train_heatload_2max_pool_10time_step.pt'
+    else:
+        input_file_name = '/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_max_pool_102time_step.pt'
+        input_load_file_name='/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_heatload_max_pool_10time_step.pt'
+
+    input_captured=torch.load(input_file_name)
+    target=torch.load(input_load_file_name)
     print('this tensor is loaded from file')
     print(input_captured.shape)
     print('heat load')
@@ -294,8 +311,12 @@ if __name__ == "__main__":
 
     time_step_speed = 2  # number of time steps to put into vocabulary(actially it is a function of the speed of the boundaries of a buble)
     time_step_signature = 30  # number of samples added to signature of state of boiling
-    number_of_samples_lstm = 21 * 12000# 6 * 12000
-    first_sample_lstm =28 * 12000 # 0 # 63 * 12000
+    if run_key=="train":
+        number_of_samples_lstm = 21 * 12000
+        first_sample_lstm = 28 * 12000
+    else:
+        number_of_samples_lstm = 6 * 12000
+        first_sample_lstm =0
 
     print('changing size')
     #here i change size of one sequence
@@ -342,8 +363,6 @@ if __name__ == "__main__":
     output, (hn, cn) = rnn(input, (h0, c0))
     print(output)
 
-
-
     w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
     w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
     #first layer LSTM
@@ -366,11 +385,10 @@ if __name__ == "__main__":
     u_ho = w_ho.clone()
 
 
-
     steps_to_print=number_of_sequences-1
-    print('learning started LSTM')
+    print(str(run_key)+' started LSTM')
         # repead cycle by all samples
-    for era in range(140,400):
+    for era in range(0,1):
         print('learning epoch'+str(era+1))
 
         samples_indexes = [i for i in range(0, number_of_sequences)]  # A list contains all shuffled requires numbers
@@ -393,7 +411,10 @@ if __name__ == "__main__":
             heat_predicted[sequence_num]=torch.max(hn * w_ho + b_ho)
 
             loss.backward()
-            optimizerLSTM.step()
+
+            if run_key == 'train':
+                optimizerLSTM.step()
+
 
             # print(torch.nn.register_backward_hook(rnn))
 
@@ -439,7 +460,8 @@ if __name__ == "__main__":
                     error_by_heat[sequence_num] = ((target[sequence_num]) - torch.max(hn * w_ho + b_ho))
 
                     loss.backward()
-                    optimizerLSTM.step()
+                    if run_key == 'train':
+                        optimizerLSTM.step()
 
                     # print(torch.nn.register_backward_hook(rnn))
 
@@ -473,24 +495,24 @@ if __name__ == "__main__":
             if index==steps_to_print*int(index/steps_to_print):
                 plt.clf()
                 plt.axes([0.3, 0.3, 0.5, 0.5])
-                plt.title ('loss(index),max pool, 300 times 2 layer LSTM,*5 zero load, epoch'+str(era+1))
+                plt.title ('loss(index),max pool, 300 times 2 layer LSTM,*5 zero load,'+str(run_key) +str(era+1))
                 plt.plot(error, 'k:', label='1')
                 plt.xlabel('Iteration')
                 plt.ylabel('loss')
                 plt.legend()
                 basePath = os.path.dirname(os.path.abspath(__file__))
-                results_dir = basePath+ '/Models/LSTM/21_04_18_X-Time/'
-                sample_file_name = 'x5 Error_LSTM1layer_' + str(steps_to_print) + '_steps_epoch_'+str(era)+'.png'
+                results_dir = basePath+ '/Models/LSTM/27_04_18_X-Time_Validation/'
+                sample_file_name = str(run_key)+'x5 Error_LSTM1layer_' + str(steps_to_print) + '_steps_epoch_'+str(era)+'.png'
                 plt.savefig(results_dir + sample_file_name)
 
                 plt.clf()
                 plt.axes([0.3, 0.3, 0.5, 0.5])
-                plt.title ('error (heat),max pool, 300 times 2 layer LSTM,*5 zero load epoch'+str(era+1))
+                plt.title ('error (heat),max pool, 300 times 2 layer LSTM,*5 zero load '+str(run_key) +str(era+1))
                 plt.plot(error_by_heat, 'k:', label='1')
                 plt.xlabel('Heat load')
                 plt.ylabel('error')
                 plt.legend()
-                sample_file_name = 'x5 Error_LSTM_arranged_by_load' + str(steps_to_print) + '_steps_epoch_'+str(era)+'.png'
+                sample_file_name = str(run_key)+'x5 Error_LSTM_arranged_by_load' + str(steps_to_print) + '_steps_epoch_'+str(era)+'.png'
                 plt.savefig(results_dir + sample_file_name)
 
         # ... after training, save your model
@@ -505,6 +527,8 @@ if __name__ == "__main__":
     plt.legend()
     sample_file_name = 'Prediction_LSTM_arranged_by_load' + str(steps_to_print) + '_steps_epoch_' + str(era) + '.png'
     plt.savefig(results_dir + sample_file_name)
+    plt.show()
+
 
     print(u_ii)
     print(u_if)
@@ -533,4 +557,16 @@ if __name__ == "__main__":
     plt.ylabel('error')
     plt.legend()
     plt.show()
+
+    # here i calculate average value of prediction above middle value
+    batch1 = heat_predicted[0:int(0.5 * number_of_sequences)]
+    batch2 = heat_predicted[int(0.5 * number_of_sequences):number_of_sequences]
+    average_predicted_load1 = numpy.mean(batch1)
+    average_predicted_load2 = numpy.mean(batch2)
+    predicted_load1 = numpy.mean(batch1[numpy.where(batch1 > average_predicted_load1)])
+    predicted_load2 = numpy.mean(batch2[numpy.where(batch2 > average_predicted_load2)])
+
+
+    print('target=' + str(100000 * target[0]) + '  predicted= ' + str(100000 * predicted_load1))
+    print('target=' + str(100000 * target[-1]) + '  predicted= ' + str(100000 * predicted_load2))
 
