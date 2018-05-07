@@ -121,7 +121,7 @@ def capture_feature(face_dataset, feature_map, num_sample_from, num_sample_to, f
                                     max_local_number[num_sample_in - num_sample_local_from] = k
 
                                     # one_dimension_result=m_pool_1d(one_dimension_result)
-                                    test = 'true'
+                                    test = 'false'
                                     if test == 'true' and (num_sample_in - num_sample_from)==47:
 
                                         # here i show results of feature_map impacting
@@ -201,8 +201,8 @@ def batch_capture_extract(face_dataset, feature_file_name):
     time_step_speed=2# number of time steps to put into vocabulary(actially it is a function of the speed of the boundaries of a buble)
     time_step_signature=30# number of samples added to signature of state of boiling
     x_max_pool=10# decrease size of x coordinate with analog of maxpooling
-    number_of_samples_lstm=6*12000#21*12000
-    first_sample_lstm=0#28*12000 #63 * 12000
+    number_of_samples_lstm=50*12000#21*12000
+    first_sample_lstm=26*12000 #63 * 12000
     number_of_sequences=int(math.floor(number_of_samples_lstm/(time_step_speed*time_step_signature)))
 
     #here i init feature map and put it to the videomemory(.cuda)
@@ -235,13 +235,13 @@ def batch_capture_extract(face_dataset, feature_file_name):
         print (sequence_num)
         SummResult, input, statistic_map, input_captured[sequence_num] = (capture_feature(face_dataset, feature_map, first_sample_lstm + sequence_num * time_step_speed * time_step_signature,first_sample_lstm + (sequence_num + 1) * time_step_speed * time_step_signature,0, 10, time_step_speed, x_max_pool))
 
-    #torch.save(input_captured, '/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_' + feature_file_name + '2time_step.pt')
+    torch.save(input_captured, '/media/alexander/Files/@Machine/Github/Boiler/' + feature_file_name + '.pt')
     print('feature saved')
-    print('/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_' + feature_file_name + '2time_step.pt')
+    print('/media/alexander/Files/@Machine/Github/Boiler/' + feature_file_name + '.pt')
 
-    #torch.save(target, '/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_heatload_' + feature_file_name + 'time_step.pt')
+    torch.save(target, '/media/alexander/Files/@Machine/Github/Boiler/H_' + feature_file_name + '.pt')
     print('target saved')
-    print('/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_heatload_' + feature_file_name + 'time_step.pt')
+    print('/media/alexander/Files/@Machine/Github/Boiler/H_' + feature_file_name + '.pt')
 
     return feature_map.shape[0], number_of_sequences
 
@@ -274,13 +274,13 @@ if __name__ == "__main__":
     test_dataset(face_dataset)
 
     #here i generate new file with captured features
-    feature_map_len, number_of_sequences = batch_capture_extract(face_dataset, 'max_pool_10')
+    feature_map_len, number_of_sequences = batch_capture_extract(face_dataset, '№5')
 
     #here i load data with captured features from file
     run_key='validation'
     if run_key=='train':
-        input_file_name = '/media/alexander/Files/@Machine/Github/Boiler/boiling_train_max_pool_102time_step.pt'
-        input_load_file_name='/media/alexander/Files/@Machine/Github/Boiler/boiling_train_heatload_2max_pool_10time_step.pt'
+        input_file_name = '/media/alexander/Files/@Machine/Github/Boiler/№5.pt'
+        input_load_file_name='/media/alexander/Files/@Machine/Github/Boiler/H_№5.pt'
     else:
         input_file_name = '/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_max_pool_102time_step.pt'
         input_load_file_name='/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_heatload_max_pool_10time_step.pt'
@@ -312,7 +312,7 @@ if __name__ == "__main__":
     time_step_speed = 2  # number of time steps to put into vocabulary(actially it is a function of the speed of the boundaries of a buble)
     time_step_signature = 30  # number of samples added to signature of state of boiling
     if run_key=="train":
-        number_of_samples_lstm = 21 * 12000
+        number_of_samples_lstm = 50 * 12000
         first_sample_lstm = 28 * 12000
     else:
         number_of_samples_lstm = 6 * 12000

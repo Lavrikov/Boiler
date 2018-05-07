@@ -69,7 +69,7 @@ def init_edge_feature_map_5x5():
     for k in range(72, 76):
         feature_map[k]=np.flip(feature_map[k-4],1)
 
-    test='false'
+    test='true'
     if test=='true':
         # here i show feature_map
         for i in range(0, 36):
