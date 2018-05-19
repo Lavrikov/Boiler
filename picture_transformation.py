@@ -3,7 +3,9 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def boundaries_detect_laplacian(sample):
+
     # select the boundaries of objects in the frame
     LaplacianFilterSample = cv2.Laplacian(sample['frame'], 3)
 
@@ -12,6 +14,7 @@ def boundaries_detect_laplacian(sample):
     BinareFilterSample=torch.from_numpy(BinareFilterSample)
 
     return BinareFilterSample.byte()
+
 
 def init_edge_feature_map_5x5():
     #here i make features. features have shape of edges with horizontal line
@@ -69,7 +72,7 @@ def init_edge_feature_map_5x5():
     for k in range(72, 76):
         feature_map[k]=np.flip(feature_map[k-4],1)
 
-    test='true'
+    test='false'
     if test=='true':
         # here i show feature_map
         for i in range(0, 36):

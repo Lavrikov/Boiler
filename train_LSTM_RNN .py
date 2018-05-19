@@ -12,6 +12,7 @@ from frames_dataset import FramesDataset
 from picture_transformation import boundaries_detect_laplacian
 from picture_transformation import init_edge_feature_map_5x5
 from random import shuffle
+import visualize
 
 def captured_decomposer(input,feature_map_len,time_step_speed):
     #captured features are stored in memory in optimal format(as number of founded feature), decompozer create array named input (spare matrix) for sequensce
@@ -24,7 +25,10 @@ def captured_decomposer(input,feature_map_len,time_step_speed):
     number_steps_signature=input.data.shape[2]
     j_range=input.data.shape[0]
 
-    one_dimension_result = torch.FloatTensor(input.data.shape[0], input.data.shape[1],(feature_amount ** time_step_speed) * number_steps_signature).zero_()
+    if torch.cuda.is_available()==True:
+        one_dimension_result = torch.cuda.FloatTensor(input.data.shape[0], input.data.shape[1],(feature_amount ** time_step_speed) * number_steps_signature).zero_()
+    else:
+        one_dimension_result = torch.FloatTensor(input.data.shape[0], input.data.shape[1], (feature_amount ** time_step_speed) * number_steps_signature).zero_()
 
     for j in range(0,j_range):
         for signature_step in range(0,number_steps_signature):
@@ -267,6 +271,13 @@ def test_dataset(face_dataset):
 
 if __name__ == "__main__":
 
+    print('Cuda available?')
+    print(torch.cuda.is_available())
+    print('videocard')
+    print(torch.cuda.device_count())
+
+    basePath=os.path.dirname(os.path.abspath(__file__))
+
     #here i load the video dataset like a group of a pictures
     face_dataset = FramesDataset('file:///media/alexander/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/alexander/Files/@Machine/Github/Boiler/train')
     #face_dataset = FramesDataset('./train/annotations.csv', './train')
@@ -274,10 +285,10 @@ if __name__ == "__main__":
     test_dataset(face_dataset)
 
     #here i generate new file with captured features
-    feature_map_len, number_of_sequences = batch_capture_extract(face_dataset, '№5')
+    #feature_map_len, number_of_sequences = batch_capture_extract(face_dataset, '№5')
 
     #here i load data with captured features from file
-    run_key='validation'
+    run_key='train'
     if run_key=='train':
         input_file_name = '/media/alexander/Files/@Machine/Github/Boiler/№5.pt'
         input_load_file_name='/media/alexander/Files/@Machine/Github/Boiler/H_№5.pt'
@@ -286,6 +297,8 @@ if __name__ == "__main__":
         input_load_file_name='/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_heatload_max_pool_10time_step.pt'
 
     input_captured=torch.load(input_file_name)
+    print('input_loaded cuda= '+ str(input_captured.is_cuda))
+
     target=torch.load(input_load_file_name)
     print('this tensor is loaded from file')
     print(input_captured.shape)
@@ -301,13 +314,22 @@ if __name__ == "__main__":
     number_of_sequences=input_captured.data.shape[0]
     number_of_new_sequences=int(math.floor(number_of_sequences/number_of_seq_together))#number of sequrnces after adding seq to one
     new_input_captured=Variable(torch.IntTensor(number_of_new_sequences, input_captured.data.shape[1], input_captured.data.shape[2], input_captured.data.shape[3]*number_of_seq_together))#tensor for repead using of captured feature
-    new_target=Variable(torch.FloatTensor(number_of_new_sequences))
+    new_target=Variable(torch.cuda.FloatTensor(number_of_new_sequences))
+
     error=numpy.zeros(shape=(number_of_new_sequences), dtype='float32')
     error_by_heat=numpy.zeros(shape=(number_of_new_sequences), dtype='float32')
     heat_predicted = numpy.zeros(shape=(number_of_new_sequences), dtype='float32')
     zero_load_repeat=5
     feature_map = init_edge_feature_map_5x5()
     feature_map_len=feature_map.shape[0]
+
+    if torch.cuda.is_available()==True:
+        print(new_target.is_cuda)
+        new_target.cuda()
+        print(new_target.is_cuda)
+
+
+
 
     time_step_speed = 2  # number of time steps to put into vocabulary(actially it is a function of the speed of the boundaries of a buble)
     time_step_signature = 30  # number of samples added to signature of state of boiling
@@ -338,6 +360,9 @@ if __name__ == "__main__":
     number_of_sequences=number_of_new_sequences
 
     input = captured_decomposer(input_captured[0], feature_map_len, time_step_speed)
+    if torch.cuda.is_available()==True:
+        input.cuda()
+        print('input inside cuda ' + str(input.is_cuda))
 
     # here i init NN
     # The structure of input tensor LSTM fo picture recognition (seq-lenght, batch, input_size)
@@ -345,9 +370,14 @@ if __name__ == "__main__":
     # 2 argument - is equal a number of batch - better to use 1
     # 3 argument - is one dimensional array contains all features from all part of picture- it is require convert 3 dimensional array to 1 dimension and put to this cell.
     # The structure of paramenters LSTM(lenght of array with features=big value, number of heatures in output can be lower and higer than in input- how mach i want, number of layer in recurent model)
+
     rnn = torch.nn.LSTM(input.data.shape[2], hidden_features, hidden_layer, dropout=0.01)
     #load pretrained model if it is required
-    rnn = torch.load('LSTM__learning_started_ 19_04_18.pt')
+    rnn = torch.load('№5_model.pt')
+
+    if torch.cuda.is_available()==True:
+        rnn.cuda()
+
 
     ln1=torch.nn.Linear(input.data.shape[2],100)
     ln2=torch.nn.Linear(100,1)
@@ -356,15 +386,24 @@ if __name__ == "__main__":
     optimizerLSTM=torch.optim.Adadelta(rnn.parameters(), lr=0.04)
 
     sequence_len = input.data.shape[0]  # number of pixelx by X of picture
-    h0 = torch.autograd.Variable(torch.FloatTensor(sequence_len,1,hidden_features))
+    h0 = torch.autograd.Variable(torch.cuda.FloatTensor(hidden_layer,1,hidden_features))
     h0.data[0,0,0]=0.01
-    c0 = torch.autograd.Variable(torch.FloatTensor(sequence_len,1,hidden_features))
+    c0 = torch.autograd.Variable(torch.cuda.FloatTensor(hidden_layer,1,hidden_features))
     c0.data[0, 0, 0] =0.01
+    if torch.cuda.is_available()==True:
+        print('c0 inside cuda ' + str(c0.is_cuda))
+        print('h0 inside cuda ' + str(h0.is_cuda))
+
+
+
     output, (hn, cn) = rnn(input, (h0, c0))
     print(output)
 
     w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
     w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
+
+    print('w_ii inside cuda' + str(w_ii.is_cuda))
+
     #first layer LSTM
     u_ii0 = w_ii.clone()
     u_if0 = w_if.clone()
@@ -388,7 +427,7 @@ if __name__ == "__main__":
     steps_to_print=number_of_sequences-1
     print(str(run_key)+' started LSTM')
         # repead cycle by all samples
-    for era in range(0,1):
+    for era in range(582,600):
         print('learning epoch'+str(era+1))
 
         samples_indexes = [i for i in range(0, number_of_sequences)]  # A list contains all shuffled requires numbers
@@ -416,33 +455,7 @@ if __name__ == "__main__":
                 optimizerLSTM.step()
 
 
-            # print(torch.nn.register_backward_hook(rnn))
-
-            print(str(index) + '  ' + str(
-                first_sample_lstm + sequence_num * time_step_speed * time_step_signature) + '-' + str(
-                first_sample_lstm + (sequence_num + 1) * time_step_speed * time_step_signature) + ' ' + str(
-                "%.4f" % torch.sum(w_ii - u_ii).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_if - u_if).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_ic - u_ic).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_io - u_io).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_hi - u_hi).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_hc - u_hc).data[0]) + '  ' + str(
-                "%.4f" % torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
-                "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.max(hn).data[0]) + '   error=' + str(
-                error_by_heat.data[sequence_num]) + '   heat=' + str(100000 * target[sequence_num].data[0]))
-
-            u_ii = w_ii.clone()
-            u_if = w_if.clone()
-            u_ic = w_ic.clone()
-            u_io = w_io.clone()
-            u_hi = w_hi.clone()
-            u_hf = w_hf.clone()
-            u_hc = w_hc.clone()
-            u_ho = w_ho.clone()
-
             optimizerLSTM.zero_grad()
-
 
 
             #here i repeat passing through zero load elements, to increase their weight at the all data
@@ -463,60 +476,25 @@ if __name__ == "__main__":
                     if run_key == 'train':
                         optimizerLSTM.step()
 
-                    # print(torch.nn.register_backward_hook(rnn))
-
-                    print(str(index) + '  ' + str(
-                        first_sample_lstm + sequence_num * time_step_speed * time_step_signature) + '-' + str(
-                        first_sample_lstm + (sequence_num + 1) * time_step_speed * time_step_signature) + ' ' + str(
-                        "%.4f" % torch.sum(w_ii - u_ii).data[0]) + '  ' + str(
-                        "%.4f" % torch.sum(w_if - u_if).data[0]) + '  ' + str(
-                        "%.4f" % torch.sum(w_ic - u_ic).data[0]) + '  ' + str(
-                        "%.4f" % torch.sum(w_io - u_io).data[0]) + '  ' + str(
-                        "%.4f" % torch.sum(w_hi - u_hi).data[0]) + '  ' + str(
-                        "%.4f" % torch.sum(w_hf - u_hf).data[0]) + '  ' + str(
-                        "%.4f" % torch.sum(w_hc - u_hc).data[0]) + '  ' + str(
-                        "%.4f" % torch.sum(w_ho - u_ho).data[0]) + '  loss=' + str(
-                        "%.4f" % loss.data[0]) + '  out' + str("%.4f" % torch.max(hn).data[0]) + '   error=' + str(
-                        error_by_heat.data[sequence_num]) + '   heat=' + str(100000 * target[sequence_num].data[0]))
-
-                    u_ii = w_ii.clone()
-                    u_if = w_if.clone()
-                    u_ic = w_ic.clone()
-                    u_io = w_io.clone()
-                    u_hi = w_hi.clone()
-                    u_hf = w_hf.clone()
-                    u_hc = w_hc.clone()
-                    u_ho = w_ho.clone()
-
                     optimizerLSTM.zero_grad()
 
+            visualize.save_some_epoch_data(index, number_of_sequences-1, era, basePath, '/Models/LSTM/19_05_18_X-Time_N6/', 'x5 Error_LSTM1layer_', error, error_by_heat, run_key)
 
 
-            if index==steps_to_print*int(index/steps_to_print):
-                plt.clf()
-                plt.axes([0.3, 0.3, 0.5, 0.5])
-                plt.title ('loss(index),max pool, 300 times 2 layer LSTM,*5 zero load,'+str(run_key) +str(era+1))
-                plt.plot(error, 'k:', label='1')
-                plt.xlabel('Iteration')
-                plt.ylabel('loss')
-                plt.legend()
-                basePath = os.path.dirname(os.path.abspath(__file__))
-                results_dir = basePath+ '/Models/LSTM/27_04_18_X-Time_Validation/'
-                sample_file_name = str(run_key)+'x5 Error_LSTM1layer_' + str(steps_to_print) + '_steps_epoch_'+str(era)+'.png'
-                plt.savefig(results_dir + sample_file_name)
-
-                plt.clf()
-                plt.axes([0.3, 0.3, 0.5, 0.5])
-                plt.title ('error (heat),max pool, 300 times 2 layer LSTM,*5 zero load '+str(run_key) +str(era+1))
-                plt.plot(error_by_heat, 'k:', label='1')
-                plt.xlabel('Heat load')
-                plt.ylabel('error')
-                plt.legend()
-                sample_file_name = str(run_key)+'x5 Error_LSTM_arranged_by_load' + str(steps_to_print) + '_steps_epoch_'+str(era)+'.png'
-                plt.savefig(results_dir + sample_file_name)
+        visualize.show_loss(index, w_ii - u_ii, w_if - u_if, w_ic - u_ic, w_io - u_io, w_hi - u_hi,
+                                w_hf - u_hf, w_hc - u_hc, w_ho - u_ho, sequence_num, first_sample_lstm,
+                                time_step_speed, time_step_signature, loss, hn, error_by_heat, target)
+        u_ii = w_ii.clone()
+        u_if = w_if.clone()
+        u_ic = w_ic.clone()
+        u_io = w_io.clone()
+        u_hi = w_hi.clone()
+        u_hf = w_hf.clone()
+        u_hc = w_hc.clone()
+        u_ho = w_ho.clone()
 
         # ... after training, save your model
-        torch.save(rnn, 'LSTM__learning_started_ 19_04_18.pt')
+        torch.save(rnn, '№5_model.pt')
 
     plt.clf()
     plt.axes([0.3, 0.3, 0.5, 0.5])
@@ -526,7 +504,7 @@ if __name__ == "__main__":
     plt.ylabel('error')
     plt.legend()
     sample_file_name = 'Prediction_LSTM_arranged_by_load' + str(steps_to_print) + '_steps_epoch_' + str(era) + '.png'
-    plt.savefig(results_dir + sample_file_name)
+    #plt.savefig(results_dir + sample_file_name)
     plt.show()
 
 
