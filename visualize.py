@@ -27,7 +27,7 @@ def show_loss(index, wi, wf, wc, wo, hi, hf, hc, ho, sequence_num, first_sample_
         error_by_heat.data[sequence_num]) + '   heat=' + str(100000 * target[sequence_num].data[0]))
 
 
-def save_some_epoch_data(current_cycle_step, every_step_save, epoch, basePath, folder, file_name, error, error_by_heat, run_key):
+def save_some_epoch_data(current_cycle_step, every_step_save, epoch, basePath, folder, file_name, error, error_by_heat, run_key, title):
 
     """
         :param current_cycle_step: the data are saved on the particular step, the step number is calculated inside function
@@ -39,12 +39,13 @@ def save_some_epoch_data(current_cycle_step, every_step_save, epoch, basePath, f
         :param error: data that be saved
         :param error_by_heat: data that be saved
         :param run_key: data that be saved (train, validation,...
+        :param title: name for the picture
     """
 
     if current_cycle_step == every_step_save * int(current_cycle_step / every_step_save):
         plt.clf()
         plt.axes([0.3, 0.3, 0.5, 0.5])
-        plt.title('loss(index),max pool, 300 times 2 layer LSTM,*5 zero load,' + str(run_key) + str(epoch + 1))
+        plt.title('loss(index),' + title + ',' + str(run_key) + str(epoch + 1))
         plt.plot(error, 'k:', label='1')
         plt.xlabel('Iteration')
         plt.ylabel('loss')
@@ -56,7 +57,7 @@ def save_some_epoch_data(current_cycle_step, every_step_save, epoch, basePath, f
 
         plt.clf()
         plt.axes([0.3, 0.3, 0.5, 0.5])
-        plt.title('error (heat),max pool, 300 times 2 layer LSTM,*5 zero load ' + str(run_key) + str(epoch + 1))
+        plt.title('error (heat),' + title + ',' + str(run_key) + str(epoch + 1))
         plt.plot(error_by_heat, 'k:', label='1')
         plt.xlabel('Heat load')
         plt.ylabel('error')
@@ -64,6 +65,7 @@ def save_some_epoch_data(current_cycle_step, every_step_save, epoch, basePath, f
         sample_file_name = str(run_key) + file_name+ '_arranged_by_load' + str(
             every_step_save) + '_steps_epoch_' + str(epoch) + '.png'
         plt.savefig(results_dir + sample_file_name)
+        print('Saved  step=' + str(current_cycle_step) + '  epoch='+str(epoch))
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ from picture_transformation import init_edge_feature_map_5x5
 from random import shuffle
 import visualize
 
-def captured_decomposer(input,feature_map_len,time_step_speed):
+def captured_decomposer(input,feature_from, feature_to,feature_map_len,time_step_speed):
     #captured features are stored in memory in optimal format(as number of founded feature), decompozer create array named input (spare matrix) for sequensce
     """
     :param input: array of captured feature numbers for every x coordinat
@@ -22,18 +22,17 @@ def captured_decomposer(input,feature_map_len,time_step_speed):
     :param time_step_speed: number of consistently frame to create dictionary
     """
     feature_amount = feature_map_len
-    number_steps_signature=input.data.shape[2]
-    j_range=input.data.shape[0]
+    number_steps_signature=feature_to-feature_from ## number of steps by time
+    j_range=input.shape[0]# number of steps by coordinate x
 
     if torch.cuda.is_available()==True:
-        one_dimension_result = torch.cuda.FloatTensor(input.data.shape[0], input.data.shape[1],(feature_amount ** time_step_speed) * number_steps_signature).zero_()
+        one_dimension_result = torch.cuda.FloatTensor(input.shape[0], input.shape[1],(feature_amount ** time_step_speed) * number_steps_signature).zero_()
     else:
-        one_dimension_result = torch.FloatTensor(input.data.shape[0], input.data.shape[1], (feature_amount ** time_step_speed) * number_steps_signature).zero_()
+        one_dimension_result = torch.FloatTensor(input.shape[0], input.shape[1], (feature_amount ** time_step_speed) * number_steps_signature).zero_()
 
     for j in range(0,j_range):
-        for signature_step in range(0,number_steps_signature):
-            one_dimension_result[j, 0, input.data[j,0,signature_step] + (feature_amount ** time_step_speed) * signature_step] = 1
-
+        for signature_step in range(feature_from,feature_to):
+            one_dimension_result[j, 0, input[j,0,signature_step] + (feature_amount ** time_step_speed) * (signature_step-feature_from)] = 1
 
 
     return Variable(one_dimension_result)
@@ -297,7 +296,7 @@ if __name__ == "__main__":
         input_load_file_name='/media/alexander/Files/@Machine/Github/Boiler/validation_boiling_heatload_max_pool_10time_step.pt'
 
     input_captured=torch.load(input_file_name)
-    print('input_loaded cuda= '+ str(input_captured.is_cuda))
+
 
     target=torch.load(input_load_file_name)
     print('this tensor is loaded from file')
@@ -312,9 +311,10 @@ if __name__ == "__main__":
     hidden_features=1
     number_of_seq_together=10 #number of sequences by time_step_signature added to one sequence for reusing code
     number_of_sequences=input_captured.data.shape[0]
-    number_of_new_sequences=int(math.floor(number_of_sequences/number_of_seq_together))#number of sequrnces after adding seq to one
-    new_input_captured=Variable(torch.IntTensor(number_of_new_sequences, input_captured.data.shape[1], input_captured.data.shape[2], input_captured.data.shape[3]*number_of_seq_together))#tensor for repead using of captured feature
-    new_target=Variable(torch.cuda.FloatTensor(number_of_new_sequences))
+    new_sequence_len=input_captured.data.shape[3]*number_of_seq_together
+    number_of_new_sequences=input_captured.data.shape[0]* input_captured.data.shape[3]-new_sequence_len
+    new_input_captured=torch.IntTensor(number_of_new_sequences, input_captured.data.shape[1], input_captured.data.shape[2], new_sequence_len)#tensor for repead using of captured feature
+    new_target=torch.cuda.FloatTensor(number_of_new_sequences)
 
     error=numpy.zeros(shape=(number_of_new_sequences), dtype='float32')
     error_by_heat=numpy.zeros(shape=(number_of_new_sequences), dtype='float32')
@@ -328,9 +328,6 @@ if __name__ == "__main__":
         new_target.cuda()
         print(new_target.is_cuda)
 
-
-
-
     time_step_speed = 2  # number of time steps to put into vocabulary(actially it is a function of the speed of the boundaries of a buble)
     time_step_signature = 30  # number of samples added to signature of state of boiling
     if run_key=="train":
@@ -341,28 +338,30 @@ if __name__ == "__main__":
         first_sample_lstm =0
 
     print('changing size')
-    #here i change size of one sequence
-    for new_sequences in range(0,number_of_new_sequences):
-        new_target[new_sequences]=target[new_sequences*number_of_seq_together]
-        print('new_sequence'+str(new_sequences))
-        seq_from=new_sequences*number_of_seq_together
-        seq_to=(new_sequences+1)*number_of_seq_together
-        for sequence in range (seq_from, seq_to):
-            for j in range (0,new_input_captured.data.shape[1]):
-                for feature in range(0, input_captured.data.shape[3]):
-                    a=input_captured.data[sequence,j,0,feature]
-                    new_input_captured.data[new_sequences,j,0,(sequence-seq_from)*input_captured.data.shape[3]+feature]=a
 
-    print(new_input_captured[10,0,0])
-    print(input_captured[100,0,0])
+    # here i create tensor without sequences, every feature arranged by heat load and coordinate
+    all_of_seq_together=input_captured.data.shape[0] #all sequence to one
+    whole_features_together=torch.IntTensor(input_captured.data.shape[1], input_captured.data.shape[2], input_captured.data.shape[3]*all_of_seq_together)#tensor for repead using of captured feature
+    whole_new_target_together=Variable(torch.cuda.FloatTensor(input_captured.data.shape[3]*all_of_seq_together))
+    #here i change size of one sequence
+    for sequence in range (0, all_of_seq_together):
+        print('sequence='+str(sequence))
+        for j in range (0,whole_features_together.shape[1]):
+            for feature in range(0, input_captured.data.shape[3]):
+                a=input_captured.data[sequence,j,0,feature]
+                whole_features_together[j,0,sequence*input_captured.data.shape[3]+feature]=a
+                whole_new_target_together[sequence*input_captured.data.shape[3]+feature]=target.data[sequence]
+
+    print('whole_features_together')
+    print(whole_features_together.shape)
+
     input_captured=new_input_captured
-    target=new_target
+    target=whole_new_target_together
     number_of_sequences=number_of_new_sequences
 
-    input = captured_decomposer(input_captured[0], feature_map_len, time_step_speed)
-    if torch.cuda.is_available()==True:
-        input.cuda()
-        print('input inside cuda ' + str(input.is_cuda))
+    input = captured_decomposer(whole_features_together,0, 0 + new_sequence_len, feature_map_len, time_step_speed)
+    print('input example')
+    print(input)
 
     # here i init NN
     # The structure of input tensor LSTM fo picture recognition (seq-lenght, batch, input_size)
@@ -427,7 +426,7 @@ if __name__ == "__main__":
     steps_to_print=number_of_sequences-1
     print(str(run_key)+' started LSTM')
         # repead cycle by all samples
-    for era in range(582,600):
+    for era in range(0,600):
         print('learning epoch'+str(era+1))
 
         samples_indexes = [i for i in range(0, number_of_sequences)]  # A list contains all shuffled requires numbers
@@ -436,7 +435,7 @@ if __name__ == "__main__":
 
         for index, sequence_num in enumerate(samples_indexes):
 
-            input = captured_decomposer(input_captured[sequence_num], feature_map_len, time_step_speed)
+            input = captured_decomposer(whole_features_together,sequence_num, sequence_num + new_sequence_len, feature_map_len, time_step_speed)
 
             output, (hn, cn) = rnn(input, (h0, c0))
 
@@ -457,6 +456,7 @@ if __name__ == "__main__":
 
             optimizerLSTM.zero_grad()
 
+            if index==100*int(index/100): print(index)
 
             #here i repeat passing through zero load elements, to increase their weight at the all data
             if target.data[sequence_num]==0 :
@@ -478,7 +478,7 @@ if __name__ == "__main__":
 
                     optimizerLSTM.zero_grad()
 
-            visualize.save_some_epoch_data(index, number_of_sequences-1, era, basePath, '/Models/LSTM/19_05_18_X-Time_N6/', 'x5 Error_LSTM1layer_', error, error_by_heat, run_key)
+            visualize.save_some_epoch_data(index, number_of_sequences-1, era, basePath, '/Models/LSTM/19_05_18_X-Time_N6/', 'x5 Error_LSTM1layer_', error, error_by_heat, run_key,'max pool, 300 times 2 layer LSTM,*5 zero load')
 
 
         visualize.show_loss(index, w_ii - u_ii, w_if - u_if, w_ic - u_ic, w_io - u_io, w_hi - u_hi,
