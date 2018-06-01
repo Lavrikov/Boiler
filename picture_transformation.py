@@ -4,6 +4,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+def resizeX(input):
+    """
+    :param input: Nupmy array
+    """
+    size=( int(input.shape[1]/2),input.shape[0])
+    output=cv2.resize(input,size)
+    return output
+
 def boundaries_detect_laplacian(sample):
 
     # select the boundaries of objects in the frame

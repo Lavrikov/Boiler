@@ -2,6 +2,7 @@ from torch.utils.data import Dataset
 import pandas as pd
 import os
 import cv2
+import picture_transformation
 
 
 class FramesDataset(Dataset):
@@ -67,7 +68,7 @@ class FramesDataset(Dataset):
             while success:
                 success, frame = cap.read()
                 if frame is not None:
-                    self.videos_cache[filename][i] = frame[-17:-3, :, 0]#-11:-1 desrease the vertical size of the image
+                    self.videos_cache[filename][i] = picture_transformation.resizeX(frame[-17:-3, :, 0])#-11:-1 desrease the vertical size of the image
                     i += 1
             cap.release()
 

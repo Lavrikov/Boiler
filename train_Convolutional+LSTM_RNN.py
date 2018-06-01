@@ -92,12 +92,12 @@ if __name__ == "__main__":
     test_dataset(face_dataset)
     zero_load_repeat=0
     number_of_farme_per_batch=30
-
+    first_layer_features_number=76
 
 
     if run_key=="train":
         number_of_samples_lstm = 15 * 12000
-        first_sample_lstm = 26 * 12000
+        first_sample_lstm = 27 * 12000
     else:
         number_of_samples_lstm = 6 * 12000
         first_sample_lstm =0
@@ -110,17 +110,17 @@ if __name__ == "__main__":
     number_of_sequences=int(math.floor(number_of_samples_lstm/number_of_farme_per_batch))
 
     #model Convolutional
-    conv_layer_1=torch.nn.Conv2d(1,76,7) #76-even number of significant 2d features
+    conv_layer_1=torch.nn.Conv2d(1,first_layer_features_number,7) #76-even number of significant 2d features
     max_pool_layer_1=torch.nn.MaxPool2d(face_dataset[first_sample_lstm]['frame'].shape[0]+1-7) #convert features tensors to 1d tensors, with kernel size equal hight of picture
-    conv_layer_2=torch.nn.Conv1d(76,76*2,2) #
+    conv_layer_2=torch.nn.Conv1d(first_layer_features_number,first_layer_features_number*2,2) #
     max_pool_layer_2 = torch.nn.MaxPool1d(2)
-    conv_layer_3=torch.nn.Conv1d(76*2,76*2*2,2) #
+    conv_layer_3=torch.nn.Conv1d(first_layer_features_number*2,first_layer_features_number*2*2,2) #
     max_pool_layer_3 = torch.nn.MaxPool1d(2)
-    conv_layer_4=torch.nn.Conv1d(76*2*2,76*2*2*2,2) #
+    conv_layer_4=torch.nn.Conv1d(first_layer_features_number*2*2,first_layer_features_number*2*2*2,2) #
     max_pool_layer_4 = torch.nn.MaxPool1d(2)
-    conv_layer_5=torch.nn.Conv1d(76*2*2*2,76*2*2*2*2,2) #
+    conv_layer_5=torch.nn.Conv1d(first_layer_features_number*2*2*2,first_layer_features_number*2*2*2*2,2) #
     max_pool_layer_5 = torch.nn.MaxPool1d(2)
-    norm_layer=torch.nn.BatchNorm1d(76*2*2*2*2)
+    norm_layer=torch.nn.BatchNorm1d(first_layer_features_number*2*2*2*2)
 
     conv_layer_1.cuda()
     max_pool_layer_1.cuda()
@@ -134,14 +134,6 @@ if __name__ == "__main__":
     max_pool_layer_5.cuda()
     norm_layer.cuda()
 
-    print('layers_params')
-    for param in conv_layer_1.parameters():
-        print('conv1')
-        print(param[0].data, param.size())
-
-    for param in conv_layer_2.parameters():
-        print('conv2')
-        print(param[0].data, param.size())
 
     input=Variable(torch.cuda.FloatTensor(number_of_farme_per_batch,1,face_dataset[first_sample_lstm]['frame'].shape[0],face_dataset[first_sample_lstm]['frame'].shape[1]).zero_())
 
@@ -215,10 +207,6 @@ if __name__ == "__main__":
     print('unsquese')
     print(output)
 
-
-    print('mean output conv' + str(torch.mean(output)))
-
-    #output=norm_layer(output)
     output=(output-torch.mean(output))/torch.max(torch.abs(output))
 
     print('mean output conv' + str(torch.mean(output)))
@@ -226,8 +214,6 @@ if __name__ == "__main__":
     #model LSTM
     hidden_layer=1
     hidden_features=1
-
-
 
 
     # here i init NN
@@ -241,6 +227,11 @@ if __name__ == "__main__":
 
     #load pretrained model if it is required
     #rnn = torch.load('№7_model.pt')
+
+    #show first layer weigts
+    weignt_1conv, bias_1conv = conv_layer_1.parameters()
+    visualize.show_weights(weignt_1conv.data)
+
 
     if torch.cuda.is_available()==True:
         rnn.cuda()
@@ -267,12 +258,12 @@ if __name__ == "__main__":
     output, (hn, cn) = rnn(output, (h0, c0))
     print(output)
 
-    rnn.register_backward_hook(hookLSTM)
-    conv_layer_1.register_backward_hook(hookFunc1)
-    conv_layer_2.register_backward_hook(hookFunc2)
-    conv_layer_3.register_backward_hook(hookFunc3)
-    conv_layer_4.register_backward_hook(hookFunc4)
-    conv_layer_5.register_backward_hook(hookFunc5)
+    #rnn.register_backward_hook(hookLSTM)
+    #conv_layer_1.register_backward_hook(hookFunc1)
+    #conv_layer_2.register_backward_hook(hookFunc2)
+    #conv_layer_3.register_backward_hook(hookFunc3)
+    #conv_layer_4.register_backward_hook(hookFunc4)
+    #conv_layer_5.register_backward_hook(hookFunc5)
 
     w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
     w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
@@ -325,7 +316,7 @@ if __name__ == "__main__":
     steps_to_print=number_of_sequences-1
     print('train started Convolution+LSTM')
         # repead cycle by all samples
-    for epoch in range(0,600):
+    for epoch in range(0,300):
         print('learning epoch'+str(epoch+1))
 
         samples_indexes = [i for i in range(0, number_of_sequences)]  # A list contains all shuffled requires numbers
@@ -353,12 +344,8 @@ if __name__ == "__main__":
             output = torch.squeeze(output, 2)
             output = torch.unsqueeze(output, 1)
             output =0.01* (output - torch.mean(output)) / torch.max(torch.abs(output))
-            print(output)
-            print('mran output conv'+ str(torch.mean(output)))
 
             output, (hn, cn) = rnn(output, (h0, c0))
-
-            print(output.data)
 
             w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
 
@@ -380,28 +367,6 @@ if __name__ == "__main__":
 
             optimizerLSTM.zero_grad()
 
-            visualize.show_loss(index, w_ii - u_ii, w_if - u_if, w_ic - u_ic, w_io - u_io, w_hi - u_hi,
-                                w_hf - u_hf, w_hc - u_hc, w_ho - u_ho, sequence_num, first_sample_lstm,
-                                3, 300, loss, hn, error_by_heat, target)
-
-            u_ii = w_ii.clone()
-            u_if = w_if.clone()
-            u_ic = w_ic.clone()
-            u_io = w_io.clone()
-            u_hi = w_hi.clone()
-            u_hf = w_hf.clone()
-            u_hc = w_hc.clone()
-            u_ho = w_ho.clone()
-
-            print(w_ii)
-            print(w_if)
-            print(w_ic)
-            print(w_io)
-
-            print(w_hi)
-            print(w_hf)
-            print(w_hc)
-            print(w_ho)
 
             if index==100*int(index/100): print(index)
 
@@ -424,6 +389,7 @@ if __name__ == "__main__":
                     output = max_pool_layer_5(output)
                     output = torch.squeeze(output, 2)
                     output = torch.unsqueeze(output, 1)
+                    output = 0.01 * (output - torch.mean(output)) / torch.max(torch.abs(output))
 
                     output, (hn, cn) = rnn(output, (h0, c0))
 
@@ -441,7 +407,7 @@ if __name__ == "__main__":
 
                     optimizerLSTM.zero_grad()
 
-            visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/19_05_18_X-Time_N6/', 'Error_Conv+LSTM_', error, error_by_heat, run_key,'Conv 5 + LSTM 2, *5 zero load,')
+            visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/01_06_18_X-Time_N7/', 'Error_Conv+LSTM_', error, error_by_heat, run_key,'Conv 5 + LSTM 2, *5 zero load,')
 
 
         visualize.show_loss(index, w_ii - u_ii, w_if - u_if, w_ic - u_ic, w_io - u_io, w_hi - u_hi,
@@ -457,7 +423,11 @@ if __name__ == "__main__":
         u_ho = w_ho.clone()
 
         # ... after training, save your model
-        torch.save(rnn, '№5_model.pt')
+        torch.save([rnn,conv_layer_1,conv_layer_2,conv_layer_3,conv_layer_4,conv_layer_5], '№7_model.pt')
+
+    #show first layer weigts
+    weignt_1conv, bias_1conv = conv_layer_1.parameters()
+    visualize.show_weights(weignt_1conv.data)
 
     plt.clf()
     plt.axes([0.3, 0.3, 0.5, 0.5])

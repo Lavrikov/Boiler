@@ -1,9 +1,30 @@
 import matplotlib.pyplot as plt
 import torch
+import math
 
 from frames_dataset import FramesDataset
 from picture_transformation import boundaries_detect_laplacian
 from train_k_neihbor import boundaries_summ_conv
+
+
+def show_weights(weights):
+
+    number_of_features=weights.shape[0]
+    number_of_windows=math.floor(number_of_features/36)
+    for j in range(0,number_of_windows):
+        # here i show feature_map
+        for i in range(0, 36):
+            # here i show results
+            ax = plt.subplot(6, 6, i + 1)  # coordinates
+            plt.tight_layout()
+            ax.set_title(i)
+            ax.axis('off')
+            # print(SummResult)
+            # show the statistic matrix
+            plt.imshow(weights[i+j][0], 'gray')
+
+        plt.show()
+        plt.clf()
 
 
 def show_frame(frame, heat_transfer):
