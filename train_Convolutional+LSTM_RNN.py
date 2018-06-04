@@ -87,7 +87,7 @@ if __name__ == "__main__":
     basePath=os.path.dirname(os.path.abspath(__file__))
 
     #here i load the video dataset like a group of a pictures
-    run_key='train'
+    run_key='verification'
     face_dataset = FramesDataset(basePath+'/train/annotations.csv',basePath+ '/train')
     test_dataset(face_dataset)
     zero_load_repeat=0
@@ -120,7 +120,6 @@ if __name__ == "__main__":
     max_pool_layer_4 = torch.nn.MaxPool1d(2)
     conv_layer_5=torch.nn.Conv1d(first_layer_features_number*2*2*2,first_layer_features_number*2*2*2*2,2) #
     max_pool_layer_5 = torch.nn.MaxPool1d(2)
-    norm_layer=torch.nn.BatchNorm1d(first_layer_features_number*2*2*2*2)
 
     conv_layer_1.cuda()
     max_pool_layer_1.cuda()
@@ -132,10 +131,14 @@ if __name__ == "__main__":
     max_pool_layer_4.cuda()
     conv_layer_5.cuda()
     max_pool_layer_5.cuda()
-    norm_layer.cuda()
 
 
     input=Variable(torch.cuda.FloatTensor(number_of_farme_per_batch,1,face_dataset[first_sample_lstm]['frame'].shape[0],face_dataset[first_sample_lstm]['frame'].shape[1]).zero_())
+    #input_captured=Variable(torch.cuda.FloatTensor(number_of_sequences,number_of_farme_per_batch,1,face_dataset[first_sample_lstm]['frame'].shape[0],face_dataset[first_sample_lstm]['frame'].shape[1]).zero_())
+
+    #print('input_captured')
+    #print(input_captured.data.shape)
+    #print('is cuda? '+str(input_captured.is_cuda))
 
     for i in range(0, number_of_farme_per_batch):
         input.data[i,0]=torch.from_numpy(face_dataset[first_sample_lstm+i]['frame'])
@@ -187,13 +190,6 @@ if __name__ == "__main__":
     print('max_pool_layer_4')
     print(output)
 
-    output=conv_layer_5 (output)
-    print('conv_layer_5')
-    print(output)
-
-    output=max_pool_layer_5(output)
-    print('max_pool_layer_5')
-    print(output)
 
     for param in max_pool_layer_5.parameters():
         print(type(param.data), param.size())
@@ -226,7 +222,7 @@ if __name__ == "__main__":
     rnn = torch.nn.LSTM(output.data.shape[2], hidden_features, hidden_layer, dropout=0.01)
 
     #load pretrained model if it is required
-    #rnn = torch.load('№7_model.pt')
+
 
     #show first layer weigts
     weignt_1conv, bias_1conv = conv_layer_1.parameters()
@@ -243,13 +239,16 @@ if __name__ == "__main__":
                                         {'params': conv_layer_1.parameters()},
                                         {'params': conv_layer_2.parameters()},
                                         {'params': conv_layer_3.parameters()},
-                                        {'params': conv_layer_4.parameters()},
-                                        {'params': conv_layer_5.parameters()}
-                                        ], lr=0.1)
+                                        {'params': conv_layer_4.parameters()}
+                                        ], lr=1)
+
 
     sequence_len = output.data.shape[0]
     h0 = torch.autograd.Variable(torch.cuda.FloatTensor(hidden_layer,1,hidden_features)).fill_(0.01)
     c0 = torch.autograd.Variable(torch.cuda.FloatTensor(hidden_layer,1,hidden_features)).fill_(0.01)
+
+    [rnn, conv_layer_1, conv_layer_2, conv_layer_3, conv_layer_4, conv_layer_5] = torch.load('№7_model.pt')
+    rnn.flatten_parameters()
 
     if torch.cuda.is_available()==True:
         print('c0 inside cuda ' + str(c0.is_cuda))
@@ -300,9 +299,9 @@ if __name__ == "__main__":
     u_hc = w_hc.clone()
     u_ho = w_ho.clone()
 
-    error=numpy.zeros(shape=(number_of_sequences), dtype='float32')
-    error_by_heat=numpy.zeros(shape=(number_of_sequences), dtype='float32')
-    heat_predicted = numpy.zeros(shape=(number_of_sequences), dtype='float32')
+    error=torch.cuda.FloatTensor(number_of_sequences)
+    error_by_heat=torch.cuda.FloatTensor(number_of_sequences)
+    heat_predicted = torch.cuda.FloatTensor(number_of_sequences)
     target = torch.cuda.FloatTensor(number_of_sequences)
 
     print('target generation (heat load)')
@@ -310,13 +309,19 @@ if __name__ == "__main__":
         sample_num = first_sample_lstm + sequence_num*number_of_farme_per_batch
         print(sample_num)
         target[sequence_num] = float(face_dataset[sample_num]['heat_transfer']) / 100000
+
+        #put all video to GPU
+        #for i in range(0, number_of_farme_per_batch):
+        #    input_captured[sequence_num,i, 0] = torch.from_numpy(face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_batch + i]['frame'])
+
         # print(sample_num)
     target = Variable(target)
+
 
     steps_to_print=number_of_sequences-1
     print('train started Convolution+LSTM')
         # repead cycle by all samples
-    for epoch in range(0,300):
+    for epoch in range(0,90):
         print('learning epoch'+str(epoch+1))
 
         samples_indexes = [i for i in range(0, number_of_sequences)]  # A list contains all shuffled requires numbers
@@ -325,7 +330,7 @@ if __name__ == "__main__":
 
         for index, sequence_num in enumerate(samples_indexes):
 
-            print(str(index)+' from '+ str(number_of_sequences))
+            #print(str(index)+' from '+ str(number_of_sequences))
 
             for i in range(0, number_of_farme_per_batch):
                 input.data[i, 0] = torch.from_numpy(face_dataset[first_sample_lstm + sequence_num*number_of_farme_per_batch +i]['frame'])
@@ -339,8 +344,6 @@ if __name__ == "__main__":
             output = max_pool_layer_3(output)
             output = conv_layer_4(output)
             output = max_pool_layer_4(output)
-            output = conv_layer_5(output)
-            output = max_pool_layer_5(output)
             output = torch.squeeze(output, 2)
             output = torch.unsqueeze(output, 1)
             output =0.01* (output - torch.mean(output)) / torch.max(torch.abs(output))
@@ -353,13 +356,16 @@ if __name__ == "__main__":
 
             b_hi, b_hf, b_hc, b_ho = rnn.bias_hh_l0.chunk(4, 0)
 
+            print(str(w_ho)+'  '+str(b_ho)+'  '+ str(hn))
+
+
             loss = ((target[sequence_num]) - (hn * w_ho + b_ho)) ** 2
 
-            error[index] = loss.data[0]
+            error[index] = loss.data[0,0,0]
 
-            error_by_heat[sequence_num] = ((target[sequence_num]) - (hn * w_ho + b_ho))
+            error_by_heat[sequence_num] = ((target[sequence_num]) - (hn * w_ho + b_ho)).data[0,0,0]
 
-            heat_predicted[sequence_num]=torch.max(hn * w_ho + b_ho)
+            heat_predicted[sequence_num]=torch.max((hn * w_ho + b_ho)).data[0]
 
             loss.backward()
 
@@ -385,8 +391,6 @@ if __name__ == "__main__":
                     output = max_pool_layer_3(output)
                     output = conv_layer_4(output)
                     output = max_pool_layer_4(output)
-                    output = conv_layer_5(output)
-                    output = max_pool_layer_5(output)
                     output = torch.squeeze(output, 2)
                     output = torch.unsqueeze(output, 1)
                     output = 0.01 * (output - torch.mean(output)) / torch.max(torch.abs(output))
@@ -394,12 +398,18 @@ if __name__ == "__main__":
                     output, (hn, cn) = rnn(output, (h0, c0))
 
                     w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
+
                     w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
+
                     b_hi, b_hf, b_hc, b_ho = rnn.bias_hh_l0.chunk(4, 0)
 
-                    loss = ((target[sequence_num]) - torch.max(hn * w_ho + b_ho)) ** 2
-                    error[index] = loss.data[0]
-                    error_by_heat[sequence_num] = ((target[sequence_num]) - torch.max(hn * w_ho + b_ho))
+                    loss = ((target[sequence_num]) - (hn * w_ho + b_ho)) ** 2
+
+                    error[index] = loss.data[0, 0, 0]
+
+                    error_by_heat[sequence_num] = ((target[sequence_num]) - (hn * w_ho + b_ho)).data[0, 0, 0]
+
+                    heat_predicted[sequence_num] = torch.max((hn * w_ho + b_ho)).data[0]
 
                     loss.backward()
 
@@ -407,12 +417,13 @@ if __name__ == "__main__":
 
                     optimizerLSTM.zero_grad()
 
-            visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/01_06_18_X-Time_N7/', 'Error_Conv+LSTM_', error, error_by_heat, run_key,'Conv 5 + LSTM 2, *5 zero load,')
-
+            visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/01_06_18_X-Time_N7/', 'Error_Conv+LSTM_', error.cpu().numpy(), error_by_heat.cpu().numpy(), run_key,'Conv 5 + LSTM 2, *5 zero load,')
 
         visualize.show_loss(index, w_ii - u_ii, w_if - u_if, w_ic - u_ic, w_io - u_io, w_hi - u_hi,
-                                w_hf - u_hf, w_hc - u_hc, w_ho - u_ho, sequence_num, first_sample_lstm,
-                                3, 300, loss, hn, error_by_heat, target)
+                            w_hf - u_hf, w_hc - u_hc, w_ho - u_ho, sequence_num, first_sample_lstm,
+                            3, 300, loss, hn, error_by_heat.cpu().numpy(), target)
+
+
         u_ii = w_ii.clone()
         u_if = w_if.clone()
         u_ic = w_ic.clone()
@@ -423,7 +434,9 @@ if __name__ == "__main__":
         u_ho = w_ho.clone()
 
         # ... after training, save your model
-        torch.save([rnn,conv_layer_1,conv_layer_2,conv_layer_3,conv_layer_4,conv_layer_5], '№7_model.pt')
+        #torch.save([rnn,conv_layer_1,conv_layer_2,conv_layer_3,conv_layer_4,conv_layer_5], '№7_model.pt')
+
+
 
     #show first layer weigts
     weignt_1conv, bias_1conv = conv_layer_1.parameters()

@@ -68,7 +68,7 @@ class FramesDataset(Dataset):
             while success:
                 success, frame = cap.read()
                 if frame is not None:
-                    self.videos_cache[filename][i] = picture_transformation.resizeX(frame[-17:-3, :, 0])#-11:-1 desrease the vertical size of the image
+                    self.videos_cache[filename][i] = picture_transformation.resizeX(frame[-17:-3, :, 0])#-11:-1 desrease the vertical size of the image by cut it, decreze horizontal size by resizing
                     i += 1
             cap.release()
 
