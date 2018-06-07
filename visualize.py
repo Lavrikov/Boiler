@@ -89,6 +89,21 @@ def save_some_epoch_data(current_cycle_step, every_step_save, epoch, basePath, f
         print('Saved  step=' + str(current_cycle_step) + '  epoch='+str(epoch))
 
 
+def save_train_validation_picture(train, validation, basePath, folder, file_name):
+
+    plt.clf()
+    plt.axes([0.3, 0.3, 0.5, 0.5])
+    plt.title('Average Error')
+    plt.plot(train, 'k:', label='train')
+    plt.plot(validation, 'r', label='validation')
+    plt.xlabel('Epoch')
+    plt.ylabel('Average Error')
+    plt.legend()
+    results_dir = basePath + folder
+    sample_file_name = file_name + '.png'
+    plt.savefig(results_dir + sample_file_name)
+
+
 if __name__ == "__main__":
     #here i load the video dataset like a group of a pictures
     face_dataset = FramesDataset('file:///media/aleksandr/Files/@Machine/Github/Boiler/train/annotations.csv', 'file:///media/aleksandr/Files/@Machine/Github/Boiler/train')
