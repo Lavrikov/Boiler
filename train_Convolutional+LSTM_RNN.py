@@ -58,14 +58,14 @@ def hookLSTM(module, gradInput, gradOutput):
     print(output)
 
 
-def test_dataset(face_dataset):
+def test_dataset(face_dataset,from_frame):
     # visualize some data
     sample = face_dataset[1]
     print(1, sample['frame'].shape, sample['heat_transfer'].shape)
     for j in range(0, 1):
         for i in range(1, 10):
             # here i calculate statistics of bubble boundaries appeariance at every coordinate of image with multiplication by 1000
-            SummResult = face_dataset[63 * 12000 + i + j * 13]['frame']
+            SummResult = face_dataset[from_frame + i + j * 13]['frame']
             # here i show results
             ax = plt.subplot(11 // 3 + 1, 3, i)  # coordinates
             plt.tight_layout()
@@ -86,20 +86,24 @@ if __name__ == "__main__":
 
     basePath=os.path.dirname(os.path.abspath(__file__))
 
+    video_length = 12000
+    number_of_samples_lstm = 50 * video_length
+    first_sample_lstm = 26 * video_length
+
+    number_of_samples_lstm_validation = 20 * video_length
+    first_sample_lstm_validation =77 * video_length
+
     #here i load the video dataset like a group of a pictures
     run_key='verification'
     face_dataset = FramesDataset(basePath+'/train/annotations.csv',basePath+ '/train')
-    test_dataset(face_dataset)
+    test_dataset(face_dataset,first_sample_lstm_validation)
     zero_load_repeat=0
     number_of_farme_per_batch=30
     first_layer_features_number=76
 
 
-    number_of_samples_lstm = 50 * 12000
-    first_sample_lstm = 26 * 12000
 
-    number_of_samples_lstm_validation = 6 * 12000
-    first_sample_lstm_validation =0 * 12000
+
 
     #print('frame type')
     #print(face_dataset[first_sample_lstm]['frame'])
@@ -134,7 +138,9 @@ if __name__ == "__main__":
 
 
     input=Variable(torch.cuda.FloatTensor(number_of_farme_per_batch,1,face_dataset[first_sample_lstm]['frame'].shape[0],face_dataset[first_sample_lstm]['frame'].shape[1]).zero_())
-    #input_captured=Variable(torch.cuda.FloatTensor(number_of_sequences,number_of_farme_per_batch,1,face_dataset[first_sample_lstm]['frame'].shape[0],face_dataset[first_sample_lstm]['frame'].shape[1]).zero_())
+    #input_captured=torch.FloatTensor(number_of_sequences,number_of_farme_per_batch,1,face_dataset[first_sample_lstm]['frame'].shape[0],face_dataset[first_sample_lstm]['frame'].shape[1]).zero_()
+
+
 
     #print('input_captured')
     #print(input_captured.data.shape)
@@ -221,7 +227,7 @@ if __name__ == "__main__":
 
     rnn = torch.nn.LSTM(output.data.shape[2], hidden_features, hidden_layer, dropout=0.01)
 
-    #load pretrained model if it is required
+
 
 
 
@@ -245,8 +251,9 @@ if __name__ == "__main__":
     h0 = torch.autograd.Variable(torch.cuda.FloatTensor(hidden_layer,1,hidden_features)).fill_(0.01)
     c0 = torch.autograd.Variable(torch.cuda.FloatTensor(hidden_layer,1,hidden_features)).fill_(0.01)
 
-    [rnn, conv_layer_1, conv_layer_2, conv_layer_3, conv_layer_4, conv_layer_5] = torch.load('№7_model_01.pt')
-    rnn.flatten_parameters()
+    # load pretrained model if it is required
+    #[rnn, conv_layer_1, conv_layer_2, conv_layer_3, conv_layer_4, conv_layer_5] = torch.load('№7_model_01.pt')
+    #rnn.flatten_parameters()
 
     # show first layer weigts
     weignt_1conv, bias_1conv = conv_layer_1.parameters()
@@ -313,12 +320,15 @@ if __name__ == "__main__":
         print(sample_num)
         target[sequence_num] = float(face_dataset[sample_num]['heat_transfer']) / 100000
 
-        #put all video to GPU
+        #put all video to one tensor (GPU or not)
         #for i in range(0, number_of_farme_per_batch):
         #    input_captured[sequence_num,i, 0] = torch.from_numpy(face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_batch + i]['frame'])
 
         # print(sample_num)
     target = Variable(target)
+
+    #input_captured_pinned = torch.Tensor.pin_memory(input_captured)
+
 
 
     error_validation=torch.cuda.FloatTensor(number_of_sequences)
@@ -356,6 +366,7 @@ if __name__ == "__main__":
 
             for i in range(0, number_of_farme_per_batch):
                 input.data[i, 0] = torch.from_numpy(face_dataset[first_sample_lstm + sequence_num*number_of_farme_per_batch +i]['frame'])
+            #input=Variable(input_captured_pinned[sequence_num])
 
             output = conv_layer_1(input)
             output = max_pool_layer_1(output)
@@ -439,7 +450,6 @@ if __name__ == "__main__":
 
                     optimizerLSTM.zero_grad()
 
-            #visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/01_06_18_X-Time_N7/', 'Error_Conv+LSTM_', error.cpu().numpy(), error_by_heat.cpu().numpy(), run_key,'Conv 5 + LSTM 2, *5 zero load,')
 
         #visualize.show_loss(index, w_ii - u_ii, w_if - u_if, w_ic - u_ic, w_io - u_io, w_hi - u_hi,
         #                    w_hf - u_hf, w_hc - u_hc, w_ho - u_ho, sequence_num, first_sample_lstm,
@@ -486,6 +496,9 @@ if __name__ == "__main__":
 
             heat_predicted_validation[sequence_num]=torch.max((hn * w_ho + b_ho)).data[0]
 
+            if index == 100 * int(index / 100): print(index)
+
+        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/05_06_18_X-Time_N7/', 'Error_Conv+LSTM_N7_03', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), run_key,'Conv 5 + LSTM 2, *5 zero load,')
 
         #here i create figure with the history of training and validation
 
@@ -493,7 +506,7 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch],validation_vs_epoch.cpu().numpy()[0:epoch], basePath, '/Models/LSTM/05_06_18_X-Time_N7/', 'Error_Conv+LSTM_N7_02')
+        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch],validation_vs_epoch.cpu().numpy()[0:epoch], basePath, '/Models/LSTM/05_06_18_X-Time_N7/', 'Error_Conv+LSTM_N7_03')
 
         #print predicted verification values
 
@@ -501,14 +514,14 @@ if __name__ == "__main__":
         for sequence_num in range(0, int(math.floor(number_of_sequences_validation/2))):
             mean_predicted_heat=heat_predicted_validation[sequence_num]+mean_predicted_heat
 
-        print('predicted heat= '+str(100000*mean_predicted_heat/int(math.floor(number_of_sequences_validation/2)))+ ' кВт\м2   traget= ' + str(target_validation[0].data[0])+' кВт/м2')
+        print('predicted heat= '+str(100000*mean_predicted_heat/int(math.floor(number_of_sequences_validation/2)))+ ' кВт\м2   target= ' + str(target_validation[0].data[0])+' кВт/м2')
 
         mean_predicted_heat = 0
         for sequence_num in range(int(math.floor(number_of_sequences_validation / 2)),number_of_sequences_validation ):
             mean_predicted_heat = heat_predicted_validation[sequence_num] + mean_predicted_heat
 
         print('predicted heat= ' + str(100000 * mean_predicted_heat / int(
-            math.floor(number_of_sequences_validation / 2))) + ' кВт\м2   traget= ' + str(
+            math.floor(number_of_sequences_validation / 2))) + ' кВт\м2   target= ' + str(
             target_validation[int(math.floor(number_of_sequences_validation / 2))].data[0]) + ' кВт/м2')
 
 
@@ -522,7 +535,7 @@ if __name__ == "__main__":
         u_ho = w_ho.clone()
 
         # ... after training, save your model
-        torch.save([rnn,conv_layer_1,conv_layer_2,conv_layer_3,conv_layer_4,conv_layer_5], '№7_model_02.pt')
+        torch.save([rnn,conv_layer_1,conv_layer_2,conv_layer_3,conv_layer_4,conv_layer_5], '№7_model_03.pt')
 
 
 

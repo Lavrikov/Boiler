@@ -15,7 +15,7 @@ class FramesDataset(Dataset):
         :param video_dir: путь к папке с видеофайлами
         :param transform: опциональное преобразование над файлами
         """
-        self.annotations_df = pd.read_csv(annotations_csv_file, usecols=['filename', 'heat_transfer'])
+        self.annotations_df = pd.read_csv(annotations_csv_file, usecols=['filename', 'heat_transfer','date'])
         self.root_dir = video_dir
         self.transform = transform
 
@@ -68,7 +68,11 @@ class FramesDataset(Dataset):
             while success:
                 success, frame = cap.read()
                 if frame is not None:
-                    self.videos_cache[filename][i] = picture_transformation.resizeX(frame[-17:-3, :, 0])#-11:-1 desrease the vertical size of the image by cut it, decreze horizontal size by resizing
+
+                    if videofile['date'].values[0]=="08_06_18":
+                        self.videos_cache[filename][i] = picture_transformation.resizeX(frame[-22:-8, :, 0])#-11:-1 desrease the vertical size of the image by cut it, decreze horizontal size by resizing
+                    else:
+                        self.videos_cache[filename][i] = picture_transformation.resizeX(frame[-17:-3, :, 0])  # -11:-1 desrease the vertical size of the image by cut it, decreze horizontal size by resizing
                     i += 1
             cap.release()
 
