@@ -77,9 +77,74 @@ def test_dataset(face_dataset,from_frame):
         plt.show()
 
 
+def regularization_penalty(hn,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y):
+
+
+    penalty=0.0
+    #penalties 1 layer
+    from_hn_features=0
+    for i in range(0, reg_layer2_y):
+        for j in range(0, reg_layer2_x):
+
+            k = from_hn_features + 2 * i* reg_layer2_y + 2 * j
+
+            k_1 = from_hn_features + 2 * (i+1) * reg_layer2_y + 2 * j
+
+            k_2 = reg_layer1_x * reg_layer1_y + i * reg_layer2_y + j
+
+            w_x = hn[0,0,k] + hn[0,0,k+1]
+
+            w_y = hn[0,0,k_1] + hn[0,0,k_1+1]
+
+            w_z = hn[0,0,k_2]
+
+            penalty = penalty + torch.abs(w_x + w_y + w_z)
+
+
+    # penalties 2 layer
+    penalty_2 = 0.0
+    from_hn_layer2 = from_hn_features + reg_layer2_x * reg_layer2_y
+    for i in range(0, reg_layer2_y):
+        for j in range(0, reg_layer2_x):
+
+            k = from_hn_layer2 + 2 * i* reg_layer2_y + 2 * j
+
+            k_1 = from_hn_layer2 + 2 * (i+1) * reg_layer2_y + 2 * j
+
+            k_2 = from_hn_features + i * reg_layer2_y + j
+
+            F = 0.5 * (hn[0,0,k] + hn[0,0,k+1]) + 0.5 * (hn[0,0,k_1] + hn[0,0,k_1+1])
+
+            w_z = hn[0,0,k_2]
+
+            penalty_2 = penalty_2 + w_z * F
+
+    penalty = penalty + torch.abs(penalty_2)
+
+
+    # penalties 3 layer
+    penalty_3 = 0.0
+
+    from_hn_layer2 = from_hn_features + reg_layer2_x * reg_layer2_y
+
+    for i in range(0, reg_layer3_y):
+        for j in range(0, reg_layer3_x):
+            k = from_hn_layer2 + i * reg_layer3_y + j
+
+            F = torch.abs(hn[0,0,k] - torch.abs(hn[0,0,k]))
+
+            penalty_3 = penalty_3 + F
+
+    penalty = penalty + penalty_3
+
+    penalty = penalty * penalty
+
+    return penalty
+
+
 if __name__ == "__main__":
 
-    print('Cuda available?')
+    print('Cuda available?  '+ str )
     print(torch.cuda.is_available())
     print('videocard')
     print(torch.cuda.device_count())
@@ -87,10 +152,10 @@ if __name__ == "__main__":
     basePath=os.path.dirname(os.path.abspath(__file__))
 
     video_length = 12000
-    number_of_samples_lstm = 50 * video_length
-    first_sample_lstm = 26 * video_length
+    number_of_samples_lstm = 76 * video_length #76
+    first_sample_lstm = 0 * video_length
 
-    number_of_samples_lstm_validation = 19 * video_length
+    number_of_samples_lstm_validation = 19 * video_length#19
     first_sample_lstm_validation =77 * video_length
 
     #here i load the video dataset like a group of a pictures
@@ -213,10 +278,19 @@ if __name__ == "__main__":
 
     print('mean output conv' + str(torch.mean(output)))
 
-    #model LSTM
-    hidden_layer=1
-    hidden_features=1
 
+
+    #regularisation parameters of LSTM hidden Layer
+    reg_layer1_x=60
+    reg_layer1_y=10
+    reg_layer2_x=int(math.floor(reg_layer1_x/2))
+    reg_layer2_y = int(math.floor(reg_layer1_y / 2))
+    reg_layer3_x=reg_layer1_x
+    reg_layer3_y = reg_layer1_y
+
+    # model LSTM
+    hidden_layer = 1
+    hidden_features = reg_layer1_x * reg_layer1_y + reg_layer2_x * reg_layer2_y + reg_layer3_x * reg_layer3_y
 
     # here i init NN
     # The structure of input tensor LSTM fo picture recognition (seq-lenght, batch, input_size)
@@ -227,12 +301,13 @@ if __name__ == "__main__":
 
     rnn = torch.nn.LSTM(output.data.shape[2], hidden_features, hidden_layer, dropout=0.01)
 
-
+    fully_connected_layer1=torch.nn.Linear(hidden_features, 1)
 
 
 
     if torch.cuda.is_available()==True:
         rnn.cuda()
+        fully_connected_layer1.cuda()
 
 
 
@@ -241,7 +316,8 @@ if __name__ == "__main__":
                                         {'params': conv_layer_1.parameters()},
                                         {'params': conv_layer_2.parameters()},
                                         {'params': conv_layer_3.parameters()},
-                                        {'params': conv_layer_4.parameters()}
+                                        {'params': conv_layer_4.parameters()},
+                                        {'params': fully_connected_layer1.parameters()}
                                         ], lr=0.1)
 
 
@@ -271,40 +347,6 @@ if __name__ == "__main__":
     #conv_layer_4.register_backward_hook(hookFunc4)
     #conv_layer_5.register_backward_hook(hookFunc5)
 
-    w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
-    w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
-
-    print('w_ii inside cuda' + str(w_ii.is_cuda))
-
-    print(w_ii)
-    print(w_if)
-    print(w_ic)
-    print(w_io)
-
-    print(w_hi)
-    print(w_hf)
-    print(w_hc)
-    print(w_ho)
-
-
-    #first layer LSTM
-    u_ii0 = w_ii.clone()
-    u_if0 = w_if.clone()
-    u_ic0 = w_ic.clone()
-    u_io0 = w_io.clone()
-    u_hi0 = w_hi.clone()
-    u_hf0 = w_hf.clone()
-    u_hc0 = w_hc.clone()
-    u_ho0 = w_ho.clone()
-    #second layer LSTM
-    u_ii = w_ii.clone()
-    u_if = w_if.clone()
-    u_ic = w_ic.clone()
-    u_io = w_io.clone()
-    u_hi = w_hi.clone()
-    u_hf = w_hf.clone()
-    u_hc = w_hc.clone()
-    u_ho = w_ho.clone()
 
     error=torch.cuda.FloatTensor(number_of_sequences)
     error_by_heat=torch.cuda.FloatTensor(number_of_sequences)
@@ -347,19 +389,6 @@ if __name__ == "__main__":
     train_vs_epoch=torch.cuda.FloatTensor(epoch_number).zero_()
     validation_vs_epoch=torch.cuda.FloatTensor(epoch_number).zero_()
 
-    # print predicted verification values
-
-    mean_predicted_heat = 0
-    heat_sec_num = int(math.floor(video_length / number_of_farme_per_batch))
-    for heat_load in range(0, int(math.floor(number_of_samples_lstm_validation / video_length))):
-
-        for sequence_num in range(heat_sec_num * heat_load, heat_sec_num * (heat_load + 1)):
-            mean_predicted_heat = heat_predicted_validation[sequence_num] + mean_predicted_heat
-
-        print('predicted heat= ' + str(100000 * mean_predicted_heat / int(
-            math.floor(number_of_sequences_validation / 2))) + ' кВт\м2   target= ' + str(
-            target_validation[heat_sec_num * heat_load].data[0]) + ' кВт/м2')
-
 
     steps_to_print=number_of_sequences-1
     print('train started Convolution+LSTM')
@@ -394,29 +423,24 @@ if __name__ == "__main__":
 
             output, (hn, cn) = rnn(output, (h0, c0))
 
-            w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
-
-            w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
-
-            b_hi, b_hf, b_hc, b_ho = rnn.bias_hh_l0.chunk(4, 0)
-
-            #print(str(w_ho.data[0,0])+'  '+str(b_ho.data[0])+'  '+ str(hn.data[0,0,0])+ '  '+ str(target[sequence_num].data[0]))
+            output=fully_connected_layer1(hn)
 
 
-            loss = ((target[sequence_num]) - (hn * w_ho + b_ho)) ** 2
+            loss = ((target[sequence_num]) - output) ** 2  +  regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
+
+            print ('loss' + str(loss.data[0,0,0]) + ' regularization' + str(regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y).data[0]))
 
             error[index] = loss.data[0,0,0]
 
-            error_by_heat[sequence_num] = ((target[sequence_num]) - (hn * w_ho + b_ho)).data[0,0,0]
+            error_by_heat[sequence_num] = ((target[sequence_num]) - output).data[0,0,0]
 
-            heat_predicted[sequence_num]=torch.max((hn * w_ho + b_ho)).data[0]
+            heat_predicted[sequence_num]=torch.max((output)).data[0]
 
             loss.backward()
 
             optimizerLSTM.step()
 
             optimizerLSTM.zero_grad()
-
 
             if index==100*int(index/100): print(index)
 
@@ -441,19 +465,15 @@ if __name__ == "__main__":
 
                     output, (hn, cn) = rnn(output, (h0, c0))
 
-                    w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
+                    output = fully_connected_layer1(hn)
 
-                    w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
-
-                    b_hi, b_hf, b_hc, b_ho = rnn.bias_hh_l0.chunk(4, 0)
-
-                    loss = ((target[sequence_num]) - (hn * w_ho + b_ho)) ** 2
+                    loss = ((target[sequence_num]) - output) ** 2 +  regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
 
                     error[index] = loss.data[0, 0, 0]
 
-                    error_by_heat[sequence_num] = ((target[sequence_num]) - (hn * w_ho + b_ho)).data[0, 0, 0]
+                    error_by_heat[sequence_num] = ((target[sequence_num]) - output).data[0, 0, 0]
 
-                    heat_predicted[sequence_num] = torch.max((hn * w_ho + b_ho)).data[0]
+                    heat_predicted[sequence_num] = torch.max((output)).data[0]
 
                     loss.backward()
 
@@ -493,23 +513,19 @@ if __name__ == "__main__":
 
             output, (hn, cn) = rnn(output, (h0, c0))
 
-            w_ii, w_if, w_ic, w_io = rnn.weight_ih_l0.chunk(4, 0)
+            output = fully_connected_layer1(hn)
 
-            w_hi, w_hf, w_hc, w_ho = rnn.weight_hh_l0.chunk(4, 0)
+            loss = ((target_validation[sequence_num]) - output) ** 2 + regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
 
-            b_hi, b_hf, b_hc, b_ho = rnn.bias_hh_l0.chunk(4, 0)
+            error_validation[index] = loss.data[0, 0, 0]
 
-            loss = ((target_validation[sequence_num]) - (hn * w_ho + b_ho)) ** 2
+            error_by_heat_validation[sequence_num] = ((target_validation[sequence_num]) - output).data[0, 0, 0]
 
-            error_validation[sequence_num] = loss.data[0,0,0]
-
-            error_by_heat_validation[sequence_num] = ((target_validation[sequence_num]) - (hn * w_ho + b_ho)).data[0,0,0]
-
-            heat_predicted_validation[sequence_num]=torch.max((hn * w_ho + b_ho)).data[0]
+            heat_predicted_validation[sequence_num] = torch.max((output)).data[0]
 
             if index == 100 * int(index / 100): print(index)
 
-        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/05_06_18_X-Time_N7/', 'Error_Conv+LSTM_N7_03', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), run_key,'Conv 5 + LSTM 2, *5 zero load,')
+        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/16_06_18_X-Time_N10/', 'Error_Conv+LSTM_N10', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), run_key,'Conv 4 + LSTM 1+fully_conn, *5 zero load,')
 
 
         #here i create figure with the history of training and validation
@@ -518,7 +534,7 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch],validation_vs_epoch.cpu().numpy()[0:epoch], basePath, '/Models/LSTM/05_06_18_X-Time_N7/', 'Error_Conv+LSTM_N7_03')
+        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/16_06_18_X-Time_N10/', 'Error_Conv+LSTM+Fully_con_N8')
 
 
 
@@ -536,17 +552,9 @@ if __name__ == "__main__":
                 100000*target_validation[heat_sec_num * heat_load].data[0]) + ' Вт/м2')
 
 
-        u_ii = w_ii.clone()
-        u_if = w_if.clone()
-        u_ic = w_ic.clone()
-        u_io = w_io.clone()
-        u_hi = w_hi.clone()
-        u_hf = w_hf.clone()
-        u_hc = w_hc.clone()
-        u_ho = w_ho.clone()
 
         # ... after training, save your model
-        torch.save([rnn,conv_layer_1,conv_layer_2,conv_layer_3,conv_layer_4,conv_layer_5], '№7_model_03.pt')
+        torch.save([rnn,conv_layer_1,conv_layer_2,conv_layer_3,conv_layer_4,conv_layer_5], '№10_model.pt')
 
 
 
@@ -566,15 +574,6 @@ if __name__ == "__main__":
     plt.show()
 
 
-    print(u_ii)
-    print(u_if)
-    print(u_ic)
-    print(u_io)
-    print('max io ' + str(torch.max(u_io)) + 'min io ' + str(torch.min(u_io)))
-    print(u_hi)
-    print(u_hf)
-    print(u_hc)
-    print(u_ho)
 
     plt.clf()
     plt.axes([0.3, 0.3, 0.5, 0.5])
