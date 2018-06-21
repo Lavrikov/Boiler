@@ -86,9 +86,9 @@ def regularization_penalty(hn,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer
     for i in range(0, reg_layer2_y):
         for j in range(0, reg_layer2_x):
 
-            k = from_hn_features + 2 * i* reg_layer2_y + 2 * j
+            k = from_hn_features + i * reg_layer2_y + j
 
-            k_1 = from_hn_features + 2 * (i+1) * reg_layer2_y + 2 * j
+            k_1 = from_hn_features + (i+1) * reg_layer2_y + j
 
             k_2 = reg_layer1_x * reg_layer1_y + i * reg_layer2_y + j
 
@@ -107,9 +107,9 @@ def regularization_penalty(hn,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer
     for i in range(0, reg_layer2_y):
         for j in range(0, reg_layer2_x):
 
-            k = from_hn_layer2 + 2 * i* reg_layer2_y + 2 * j
+            k = from_hn_layer2 + i * reg_layer2_y + j
 
-            k_1 = from_hn_layer2 + 2 * (i+1) * reg_layer2_y + 2 * j
+            k_1 = from_hn_layer2 + (i+1) * reg_layer2_y + j
 
             k_2 = from_hn_features + i * reg_layer2_y + j
 
@@ -216,7 +216,7 @@ if __name__ == "__main__":
 
     #regularisation parameters of LSTM hidden Layer
     reg_layer1_x, reg_layer1_y = 40, 12
-    reg_layer2_x, reg_layer2_y, reg_layer3_x,reg_layer3_y  = int(math.floor(reg_layer1_x/2)), int(math.floor(reg_layer1_y / 2)), reg_layer1_x, reg_layer1_y
+    reg_layer2_x, reg_layer2_y, reg_layer3_x,reg_layer3_y  = reg_layer1_x-1, reg_layer1_y-1, reg_layer1_x, reg_layer1_y
 
 
     # The LSTM model part
@@ -263,7 +263,7 @@ if __name__ == "__main__":
 
             hn, output = forward(input)
 
-            loss = ((target[sequence_num]) - output) ** 2  +  regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
+            loss = ((target[sequence_num]) - output) ** 2 + regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
 
             #print ('loss' + str(loss.data[0,0,0]) + ' regularization penalty ' + str(regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y).data[0]))
 
@@ -325,7 +325,7 @@ if __name__ == "__main__":
 
             if sequence_num == 100 * int(sequence_num / 100): print(sequence_num)
 
-        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/20_06_18_X-Time_N11/', 'Error_Conv+LSTM_N11_03', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 4 + LSTM_+fully_conn, *5 zero load,')
+        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/20_06_18_X-Time_N11/', 'Error_Conv+LSTM_N11_04', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 4 + LSTM_+fully_conn, *5 zero load,')
 
 
         #here i create figure with the history of training and validation
@@ -334,7 +334,7 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/20_06_18_X-Time_N11/', 'Error_Conv+LSTM+Fully_con_N11_03')
+        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/20_06_18_X-Time_N11/', 'Error_Conv+LSTM+Fully_con_N11_04')
 
 
 
@@ -354,7 +354,7 @@ if __name__ == "__main__":
 
 
         # ... after training, save your model
-        torch.save([LSTM, fully_connected_layer1], '№11_model_02.pt')
+        torch.save([LSTM, fully_connected_layer1], '№11_model_04.pt')
 
 
 
