@@ -62,7 +62,7 @@ def test_dataset(face_dataset,from_frame,video_length):
     # visualize some data
     sample = face_dataset[1]
     print(1, sample['frame'].shape, sample['heat_transfer'].shape)
-    for j in range(0, 10):
+    for j in range(0, 1):
         for i in range(1, 11):
             # here i calculate statistics of bubble boundaries appeariance at every coordinate of image with multiplication by 1000
             SummResult = face_dataset[from_frame + video_length* i + video_length * 10 * j ]['frame']
@@ -176,6 +176,67 @@ def forward(input):
 
     return hn, output
 
+def test_convolutional_part( face_dataset ,number_of_farme_per_batch ,first_sample_lstm):
+
+    input = Variable(
+        torch.cuda.FloatTensor(1, 1, number_of_farme_per_batch, face_dataset[first_sample_lstm]['frame'].shape[0],
+                               face_dataset[first_sample_lstm]['frame'].shape[1]).zero_())
+
+    print('size of one dimension image' + str(input.data.shape[2]))
+    for i in range(0, number_of_farme_per_batch):
+        input.data[0, 0, i] = torch.from_numpy(
+            face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_batch + i]['frame'])
+
+    print('input')
+    print(input.shape)
+
+    print ('test conv_3D_1')
+    output = conv_3D_1(input)
+    print (output.shape)
+
+    print ('test maxpool_3D_1')
+    output = pool_3D_1(output)
+    print (output.shape)
+
+    print ('test norm_1')
+    output=torch.nn.functional.normalize(output)
+    print(output.shape)
+
+    print('test conv_3D_2')
+    output = conv_3D_2(output)
+    print(output.shape)
+
+    print('test maxpool_3D_2')
+    output = pool_3D_2(output)
+    print(output.shape)
+
+    print('test conv_3D_3')
+    output = conv_3D_3(output)
+    print(output.shape)
+
+    print('test maxpool_3D_3')
+    output = pool_3D_3(output)
+    print(output.shape)
+
+    print('test conv_3D_4')
+    output = conv_3D_4(output)
+    print(output.shape)
+
+    print('test maxpool_3D_4')
+    output = pool_3D_4(output)
+    print(output.shape)
+
+    print('test conv_3D_5')
+    output = conv_3D_5(output)
+    print(output.shape)
+
+    print('test maxpool_3D_5')
+    output = pool_3D_5(output)
+    print(output.shape)
+
+
+    return output,input
+
 
 
 if __name__ == "__main__":
@@ -187,8 +248,8 @@ if __name__ == "__main__":
     print('Cuda available?  '+ str(torch.cuda.is_available())+ ', videocard  '+ str(torch.cuda.device_count()))
 
     video_length = 12000
-    number_of_samples_lstm, first_sample_lstm = 86 * video_length, 0 * video_length
-    number_of_samples_lstm_validation, first_sample_lstm_validation = 19 * video_length, 87 * video_length
+    number_of_samples_lstm, first_sample_lstm = 6 * video_length, 0 * video_length #86
+    number_of_samples_lstm_validation, first_sample_lstm_validation = 1 * video_length, 87 * video_length #19
 
 
     #here i load the video dataset like a group of a pictures and view some pictures
@@ -204,28 +265,35 @@ if __name__ == "__main__":
     error, error_by_heat, heat_predicted = torch.cuda.FloatTensor(number_of_sequences),torch.cuda.FloatTensor(number_of_sequences), torch.cuda.FloatTensor(number_of_sequences)
     error_validation, error_by_heat_validation, heat_predicted_validation =torch.cuda.FloatTensor(number_of_sequences_validation),torch.cuda.FloatTensor(number_of_sequences_validation),torch.cuda.FloatTensor(number_of_sequences_validation)
 
-    input = Variable(torch.cuda.FloatTensor(number_of_farme_per_batch, 1, face_dataset[first_sample_lstm]['frame'].shape[0]*face_dataset[first_sample_lstm]['frame'].shape[1]).zero_())
     sequence_num=0
-    print('size of one dimension image'+str(input.data.shape[2]))
-    for i in range(0, number_of_farme_per_batch):
 
-        input.data[i, 0] = torch.from_numpy(np.resize(face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_batch + i]['frame'],input.data.shape[2]))
+    # The 3D Convolutional
 
-    print('input')
-    print(input)
+    conv_3D_1=torch.nn.Conv3d(1, 10, 3).cuda()
+    pool_3D_1=torch.nn.MaxPool3d((2,1,2)).cuda()
+    conv_3D_2=torch.nn.Conv3d(10, 20, 3).cuda()
+    pool_3D_2=torch.nn.MaxPool3d((2,1,2)).cuda()
+    conv_3D_3=torch.nn.Conv3d(20, 40, 3).cuda()
+    pool_3D_3=torch.nn.MaxPool3d((2,1,2)).cuda()
+    conv_3D_4=torch.nn.Conv3d(40, 80, 3).cuda()
+    pool_3D_4=torch.nn.MaxPool3d((2,1,2)).cuda()
+    conv_3D_5=torch.nn.Conv3d(80, 160, 3).cuda()
+    pool_3D_5=torch.nn.MaxPool3d((2,1,2)).cuda()
 
-    #regularisation parameters of LSTM hidden Layer
-    reg_layer1_x, reg_layer1_y = 40, 12
-    reg_layer2_x, reg_layer2_y, reg_layer3_x,reg_layer3_y  = reg_layer1_x-1, reg_layer1_y-1, reg_layer1_x, reg_layer1_y
+    output, input = test_convolutional_part(face_dataset, number_of_farme_per_batch, first_sample_lstm)
 
+    print('resize')
+    (B, F, D, H, W) = output.data.size()
+    output = output.view(-1, B * F * D * H * W)
+    print(output)
 
-    # The LSTM model part
-    hidden_layer, hidden_features= 1, reg_layer1_x * reg_layer1_y + reg_layer2_x * reg_layer2_y + reg_layer3_x * reg_layer3_y
+    fully_connected_layer_1 = torch.nn.Linear(output.shape[1], 1).cuda()
 
+    output=fully_connected_layer_1(output)
 
-    LSTM= torch.nn.LSTM(input.data.shape[2], hidden_features, hidden_layer).cuda()
-    fully_connected_layer1= torch.nn.Linear(hidden_features, 1).cuda()
+    print(output)
 
+    test_dataset(face_dataset, first_sample_lstm, video_length)
 
     optimizerLSTM=torch.optim.Adadelta([
                                         {'params': LSTM.parameters()},
