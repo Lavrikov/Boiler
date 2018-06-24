@@ -225,7 +225,7 @@ if __name__ == "__main__":
 
 
     #below I init model parts
-    zero_load_repeat,number_of_farme_per_batch=0, 6000,
+    zero_load_repeat,number_of_farme_per_batch,F_1= 5, 3000, 20
     number_of_sequences=int(math.floor(number_of_samples_lstm/number_of_farme_per_batch))
     number_of_sequences_validation=int(math.floor(number_of_samples_lstm_validation/number_of_farme_per_batch))
     error, error_by_heat, heat_predicted = torch.cuda.FloatTensor(number_of_sequences),torch.cuda.FloatTensor(number_of_sequences), torch.cuda.FloatTensor(number_of_sequences)
@@ -236,16 +236,18 @@ if __name__ == "__main__":
     # The 3D Convolutional
 
     model_convolutional_3D = torch.nn.Sequential(
-        torch.nn.Conv3d(1, 10, 3),
+        torch.nn.Conv3d(1, F_1, 3),
         torch.nn.MaxPool3d((2, 1, 2)),
-        torch.nn.Conv3d(10, 20, 3),
+        torch.nn.Conv3d(F_1, F_1*2, 3),
         torch.nn.MaxPool3d((2, 1, 2)),
-        torch.nn.Conv3d(20, 40, 3),
+        torch.nn.Conv3d(F_1*2, F_1*4, 3),
         torch.nn.MaxPool3d((2, 1, 2)),
-        torch.nn.Conv3d(40, 80, 3),
+        torch.nn.Conv3d(F_1*4, F_1*8, 3),
         torch.nn.MaxPool3d((2, 1, 2)),
-        torch.nn.Conv3d(80, 160, 3),
+        torch.nn.Conv3d(F_1*8, F_1*16, 3),
         torch.nn.MaxPool3d((2, 1, 2)),
+        torch.nn.Conv3d(F_1*16, F_1*32, 3),
+        torch.nn.MaxPool3d((2, 1, 1)),
     ).cuda()
 
     output, input = test_convolutional_part(face_dataset, number_of_farme_per_batch, first_sample_lstm)
@@ -266,7 +268,7 @@ if __name__ == "__main__":
     optimizerLSTM=torch.optim.Adadelta([
                                         {'params': model_convolutional_3D.parameters()},
                                         {'params': fully_connected_layer_1.parameters()}
-                                        ], lr=0.01)
+                                        ], lr=0.001)
 
 
     # load pretrained model if it is required
@@ -363,7 +365,7 @@ if __name__ == "__main__":
 
             if sequence_num == 100 * int(sequence_num / 100): print(sequence_num)
 
-        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N12_01', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 5 +fully_conn, *5 zero load,')
+        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N12_02', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 5 +fully_conn, *5 zero load,')
 
 
         #here i create figure with the history of training and validation
@@ -372,7 +374,7 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N12_01')
+        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N12_02')
 
 
 
@@ -392,7 +394,7 @@ if __name__ == "__main__":
 
 
         # ... after training, save your model
-        torch.save([model_convolutional_3D, fully_connected_layer_1], '№12_model_01.pt')
+        torch.save([model_convolutional_3D, fully_connected_layer_1], '№12_model_02.pt')
 
 
 
