@@ -13,51 +13,6 @@ from random import shuffle
 import visualize
 
 
-def hookFunc1(module, gradInput, gradOutput):
-    output = 'conv1'
-    for v in gradInput:
-        if v is None:
-            output=output + ' none'
-        else:
-            output = output + ' ' + str(torch.max(torch.abs(v)).data[0])
-    print(output)
-
-
-def hookFunc2(module, gradInput, gradOutput):
-    output = 'conv2'
-    for v in gradInput:
-        output = output + ' ' + str(torch.max(torch.abs(v)).data[0])
-    print(output)
-
-
-def hookFunc3(module, gradInput, gradOutput):
-    output = 'conv3'
-    for v in gradInput:
-        output = output + ' ' + str(torch.max(torch.abs(v)).data[0])
-    print(output)
-
-
-def hookFunc4(module, gradInput, gradOutput):
-    output = 'conv4'
-    for v in gradInput:
-        output = output + ' ' + str(torch.max(torch.abs(v)).data[0])
-    print(output)
-
-
-def hookFunc5(module, gradInput, gradOutput):
-    output = 'conv5'
-    for v in gradInput:
-        output = output + ' ' + str(torch.max(torch.abs(v)).data[0])
-    print(output)
-
-
-def hookLSTM(module, gradInput, gradOutput):
-    output = 'LSTM'
-    for v in gradInput:
-        output = output + ' ' + str(torch.max(torch.abs(v)).data[0])
-    print(output)
-
-
 def test_dataset(face_dataset,from_frame,video_length):
     # visualize some data
     sample = face_dataset[1]
@@ -174,21 +129,26 @@ def forward(input):
     output = model_convolutional_3D(output)
     #resize
     (B, F, D, H, W) = output.data.size()
-    output = output.view(-1, B * F * D * H * W)
+    output = output.view(B, F * D * H * W)
     output=fully_connected_layer_1(output)
 
     return output
 
-def test_convolutional_part( face_dataset ,number_of_farme_per_batch ,first_sample_lstm):
+def test_convolutional_part( face_dataset ,number_of_farme_per_seq, number_of_seq_per_batch, first_sample_lstm, number_of_batch):
 
     input = Variable(
-        torch.cuda.FloatTensor(1, 1, number_of_farme_per_batch, face_dataset[first_sample_lstm]['frame'].shape[0],
+        torch.cuda.FloatTensor(number_of_seq_per_batch, 1, number_of_farme_per_seq, face_dataset[first_sample_lstm]['frame'].shape[0],
+                               face_dataset[first_sample_lstm]['frame'].shape[1]).zero_())
+
+    input_validation = Variable(
+        torch.cuda.FloatTensor(1, 1, number_of_farme_per_seq, face_dataset[first_sample_lstm]['frame'].shape[0],
                                face_dataset[first_sample_lstm]['frame'].shape[1]).zero_())
 
     print('size of one dimension image' + str(input.data.shape[2]))
-    for i in range(0, number_of_farme_per_batch):
-        input.data[0, 0, i] = torch.from_numpy(
-            face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_batch + i]['frame'])
+    for b in range(0, number_of_seq_per_batch):
+        for i in range(0, number_of_farme_per_seq):
+            input.data[b, 0, i] = torch.from_numpy(
+                face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_seq + i]['frame'])
 
     print('input')
     print(input.shape)
@@ -201,7 +161,7 @@ def test_convolutional_part( face_dataset ,number_of_farme_per_batch ,first_samp
     output= model_convolutional_3D(output)
     print (output.shape)
 
-    return output,input
+    return output,input, input_validation
 
 
 
@@ -225,9 +185,10 @@ if __name__ == "__main__":
 
 
     #below I init model parts
-    zero_load_repeat,number_of_farme_per_batch,F_1= 5, 300, 20
-    number_of_sequences=int(math.floor(number_of_samples_lstm/number_of_farme_per_batch))
-    number_of_sequences_validation=int(math.floor(number_of_samples_lstm_validation/number_of_farme_per_batch))
+    zero_load_repeat,number_of_farme_per_seq,F_1, number_of_seq_per_batch= 5, 300, 25, 10
+    number_of_sequences=int(math.floor(number_of_samples_lstm/number_of_farme_per_seq))
+    number_of_sequences_validation=int(math.floor(number_of_samples_lstm_validation/number_of_farme_per_seq))
+    number_of_batchs=int(math.floor(number_of_sequences/number_of_seq_per_batch))
     error, error_by_heat, heat_predicted = torch.cuda.FloatTensor(number_of_sequences),torch.cuda.FloatTensor(number_of_sequences), torch.cuda.FloatTensor(number_of_sequences)
     error_validation, error_by_heat_validation, heat_predicted_validation =torch.cuda.FloatTensor(number_of_sequences_validation),torch.cuda.FloatTensor(number_of_sequences_validation),torch.cuda.FloatTensor(number_of_sequences_validation)
 
@@ -248,16 +209,19 @@ if __name__ == "__main__":
         torch.nn.MaxPool3d((2, 2, 2)),
     ).cuda()
 
-    output, input = test_convolutional_part(face_dataset, number_of_farme_per_batch, first_sample_lstm)
+    output, input,input_validation = test_convolutional_part(face_dataset, number_of_farme_per_seq, number_of_seq_per_batch, first_sample_lstm, number_of_batchs)
+
 
     print('resize')
     (B, F, D, H, W) = output.data.size()
-    output = output.view(-1, B * F * D * H * W)
-    print(output)
+    output = output.view(B, F * D * H * W)
+    print(output.shape)
 
     fully_connected_layer_1 = torch.nn.Linear(output.shape[1], 1).cuda()
 
+    print('fully connected test')
     output=fully_connected_layer_1(output)
+    print(output.shape)
 
     output = forward(input)
 
@@ -268,7 +232,7 @@ if __name__ == "__main__":
     optimizerLSTM=torch.optim.Adadelta([
                                         {'params': model_convolutional_3D.parameters()},
                                         {'params': fully_connected_layer_1.parameters()}
-                                        ], lr=0.001)
+                                        ], lr=0.0001)
 
 
     # load pretrained model if it is required
@@ -277,7 +241,7 @@ if __name__ == "__main__":
 
 
     #Cycle parameters
-    target, target_validation = target_generator(face_dataset, number_of_sequences, number_of_farme_per_batch, number_of_sequences_validation)
+    target, target_validation = target_generator(face_dataset, number_of_sequences, number_of_farme_per_seq, number_of_sequences_validation)
     epoch_number, steps_to_print=90, number_of_sequences-1
     train_vs_epoch,validation_vs_epoch=torch.cuda.FloatTensor(epoch_number).zero_(), torch.cuda.FloatTensor(epoch_number).zero_()
 
@@ -287,60 +251,44 @@ if __name__ == "__main__":
     for epoch in range(0,epoch_number):
         print('learning epoch'+str(epoch+1))
 
-        samples_indexes = [i for i in range(0, number_of_sequences)]  # A list contains all shuffled requires numbers
+        samples_indexes = list(range(0, number_of_sequences))  # A list contains all shuffled requires numbers
         shuffle(samples_indexes)
 
 
-        for index, sequence_num in enumerate(samples_indexes):
+        for batch in range (0, number_of_batchs):
 
-            #print(str(index)+' from '+ str(number_of_sequences))
-            #print('createinput')
-            for i in range(0, number_of_farme_per_batch):
-                input.data[0, 0, i] = torch.from_numpy(
-                    face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_batch + i]['frame'])
-            #print('conv_started')
+            print(str(batch)+' from '+ str(number_of_batchs))
+            # form the batch
+            for index in range(0, number_of_seq_per_batch):
+                sequence_num = samples_indexes[batch * number_of_seq_per_batch + index]
+                for i in range(0, number_of_farme_per_seq):
+                    input.data[index, 0, i] = torch.from_numpy(
+                        face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_seq + i]['frame'])
+
             output = forward(input)
-            #print('calc loss')
-            loss = ((target[sequence_num]) - output) ** 2# + regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
+            loss=((target[sequence_num]) - output[index]) ** 2
+            loss.zero_()
 
-            print (str(index)+' loss' + str(loss.data[0,0])) #+ ' regularization penalty ' + str(regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y).data[0]))
+            for index in range(0, number_of_seq_per_batch):
+                sequence_num  = samples_indexes[batch * number_of_seq_per_batch + index]
 
-            error[index] = loss.data[0,0]
+                loss += ((target[sequence_num]) - output[index]) ** 2# + regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
 
-            error_by_heat[sequence_num] = ((target[sequence_num]) - output).data[0,0]
+                #print (str(sequence_num)+' loss' + str(loss.data[0])) #+ ' regularization penalty ' + str(regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y).data[0]))
 
-            heat_predicted[sequence_num]=torch.max((output)).data[0]
-            #print('backpropagation calc')
+                error[sequence_num] = loss.data[0]
+
+                error_by_heat[sequence_num] = ((target[sequence_num]) - output[index]).data[0]
+
+                heat_predicted[sequence_num]=torch.max((output[index])).data[0]
+                #print('backpropagation calc')
+
             loss.backward()
 
             #print('renew weight')
             optimizerLSTM.step()
 
             optimizerLSTM.zero_grad()
-
-            if index==100*int(index/100): print(index)
-            #print('cycle ended')
-            #here i repeat passing through zero load elements, to increase their weight at the all data
-
-            if target.data[sequence_num]==0 :
-
-                for zero_repeat in range(0,zero_load_repeat):
-
-                    output = forward(input)
-
-                    loss = ((target[sequence_num]) - output) ** 2 #+  regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
-
-                    error[index] = loss.data[0, 0]
-
-                    error_by_heat[sequence_num] = ((target[sequence_num]) - output).data[0, 0]
-
-                    heat_predicted[sequence_num] = torch.max((output)).data[0]
-
-                    loss.backward()
-
-                    optimizerLSTM.step()
-
-                    optimizerLSTM.zero_grad()
 
 
         print('validation epoch' + str(epoch + 1))
@@ -349,11 +297,11 @@ if __name__ == "__main__":
 
             #print(str(index)+' from '+ str(number_of_sequences))
 
-            for i in range(0, number_of_farme_per_batch):
-                input.data[0, 0, i] = torch.from_numpy(
-                    face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_batch + i]['frame'])
+            for i in range(0, number_of_farme_per_seq):
+                input_validation.data[0, 0, i] = torch.from_numpy(
+                    face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_seq + i]['frame'])
 
-            output = forward(input)
+            output = forward(input_validation)
 
             loss = ((target_validation[sequence_num]) - output) ** 2#  + regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
 
@@ -365,7 +313,7 @@ if __name__ == "__main__":
 
             if sequence_num == 100 * int(sequence_num / 100): print(sequence_num)
 
-        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N12_07', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 6 +fully_conn, *5 zero load,')
+        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N12_10', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 6 +fully_conn, *5 zero load,')
 
 
         #here i create figure with the history of training and validation
@@ -374,14 +322,14 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N12_07')
+        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N12_10')
 
 
 
         # print predicted verification values
 
         mean_predicted_heat = 0
-        heat_sec_num = int(math.floor(video_length / number_of_farme_per_batch))
+        heat_sec_num = int(math.floor(video_length / number_of_farme_per_seq))
         for heat_load in range(0, int(math.floor(number_of_samples_lstm_validation / video_length))):
 
             for sequence_num in range(heat_sec_num * heat_load, heat_sec_num * (heat_load + 1)):
@@ -394,7 +342,7 @@ if __name__ == "__main__":
 
 
         # ... after training, save your model
-        torch.save([model_convolutional_3D, fully_connected_layer_1], '№12_model_07.pt')
+        torch.save([model_convolutional_3D, fully_connected_layer_1], '№12_model_10.pt')
 
 
 
