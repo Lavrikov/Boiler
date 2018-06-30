@@ -131,6 +131,7 @@ def forward(input):
     (B, F, D, H, W) = output.data.size()
     output = output.view(B, F * D * H * W)
     output=fully_connected_layer_1(output)
+    output = fully_connected_layer_2(output)
 
     return output
 
@@ -182,7 +183,7 @@ if __name__ == "__main__":
 
 
     #below I init model parts
-    number_of_farme_per_seq,F_1, number_of_seq_per_batch= 300, 25, 10
+    number_of_farme_per_seq,F_1, number_of_seq_per_batch= 300, 15, 10
     number_of_sequences=int(math.floor(number_of_samples_lstm/number_of_farme_per_seq))
     number_of_sequences_validation=int(math.floor(number_of_samples_lstm_validation/number_of_farme_per_seq))
     number_of_batchs=int(math.floor(number_of_sequences/number_of_seq_per_batch))
@@ -196,13 +197,13 @@ if __name__ == "__main__":
     model_convolutional_3D = torch.nn.Sequential(
         torch.nn.Conv3d(1, F_1, 3),
         torch.nn.MaxPool3d((2, 1, 2)),
-        torch.nn.Conv3d(F_1, F_1*2, 3),
-        torch.nn.MaxPool3d((2, 1, 2)),
-        torch.nn.Conv3d(F_1*2, F_1*4, 3),
+        torch.nn.Conv3d(F_1, F_1*4, 3),
         torch.nn.MaxPool3d((2, 1, 2)),
         torch.nn.Conv3d(F_1*4, F_1*8, 3),
         torch.nn.MaxPool3d((2, 1, 2)),
         torch.nn.Conv3d(F_1*8, F_1*16, 3),
+        torch.nn.MaxPool3d((2, 1, 2)),
+        torch.nn.Conv3d(F_1*16, F_1*32, 3),
         torch.nn.MaxPool3d((2, 2, 2)),
     ).cuda()
 
@@ -332,7 +333,7 @@ if __name__ == "__main__":
 
             if sequence_num == 100 * int(sequence_num / 100): print(sequence_num)
 
-        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N13_01', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 6 +fully_conn, *5 zero load,')
+        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N13_02', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 6 +fully_conn, *5 zero load,')
 
 
         #here i create figure with the history of training and validation
@@ -341,7 +342,7 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N13_01')
+        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N13_02')
 
 
 
@@ -361,7 +362,7 @@ if __name__ == "__main__":
 
 
         # ... after training, save your model
-        torch.save([model_convolutional_3D, fully_connected_layer_1], '№13_model_01.pt')
+        torch.save([model_convolutional_3D, fully_connected_layer_1], '№13_model_02.pt')
 
 
 
