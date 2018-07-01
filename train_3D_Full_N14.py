@@ -267,7 +267,7 @@ if __name__ == "__main__":
         print('learning epoch'+str(epoch+1))
 
         samples_indexes = list(range(0, number_of_sequences))  # A list contains all shuffled requires numbers
-        shuffle(samples_indexes)
+        #shuffle(samples_indexes)
 
 
         for batch in range (0, number_of_batchs):
@@ -281,13 +281,13 @@ if __name__ == "__main__":
                         face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_seq + i]['frame'])
 
             output,hn = forward(input)
-            loss=((target[sequence_num]) - output[index]) ** 2
-            loss.zero_()
+            loss=((target[sequence_num]) - torch.mean(output[index])) ** 2
+
 
             for index in range(0, number_of_seq_per_batch):
                 sequence_num  = samples_indexes[batch * number_of_seq_per_batch + index]
 
-                loss += ((target[sequence_num]) - output[index]) ** 2 + regularization_penalty(hn[index] ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
+                loss += regularization_penalty(hn[index] ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
 
                 #print (str(sequence_num)+' loss' + str(loss.data[0])) #+ ' regularization penalty ' + str(regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y).data[0]))
 
@@ -295,7 +295,7 @@ if __name__ == "__main__":
 
                 error_by_heat[sequence_num] = ((target[sequence_num]) - output[index]).data[0]
 
-                heat_predicted[sequence_num]=torch.max((output[index])).data[0]
+                heat_predicted[sequence_num] = torch.mean((output)).data[0]
                 #print('backpropagation calc')
 
             loss.backward()
@@ -333,7 +333,7 @@ if __name__ == "__main__":
 
             if sequence_num == 100 * int(sequence_num / 100): print(sequence_num)
 
-        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N13_04', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 6 +fully_conn, *5 zero load,')
+        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N14_01', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 6 +fully_conn, *5 zero load,')
 
 
         #here i create figure with the history of training and validation
@@ -342,7 +342,7 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N13_04')
+        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N14_01')
 
 
 
@@ -362,7 +362,7 @@ if __name__ == "__main__":
 
 
         # ... after training, save your model
-        torch.save([model_convolutional_3D, fully_connected_layer_1], '№13_model_04.pt')
+        torch.save([model_convolutional_3D, fully_connected_layer_1], '№14_model_01.pt')
 
 
 
