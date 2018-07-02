@@ -172,13 +172,13 @@ if __name__ == "__main__":
     print('Cuda available?  '+ str(torch.cuda.is_available())+ ', videocard  '+ str(torch.cuda.device_count()))
 
     video_length = 12000
-    number_of_samples_lstm, first_sample_lstm = 86 * video_length, 0 * video_length #86
-    number_of_samples_lstm_validation, first_sample_lstm_validation = 19 * video_length, 87 * video_length #19
+    number_of_samples_lstm, first_sample_lstm = 72 * video_length, 0 * video_length #86
+    number_of_samples_lstm_validation, first_sample_lstm_validation = 19 * video_length, 73 * video_length #19
 
 
     #here i load the video dataset like a group of a pictures and view some pictures
     basePath=os.path.dirname(os.path.abspath(__file__))
-    face_dataset = FramesDataset(basePath+'/train/annotations.csv',basePath+ '/train')
+    face_dataset = FramesDataset(basePath+'/train/annotations_14_02.csv',basePath+ '/train')
     test_dataset(face_dataset,first_sample_lstm,video_length)
 
 
@@ -281,13 +281,12 @@ if __name__ == "__main__":
                         face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_seq + i]['frame'])
 
             output,hn = forward(input)
-            loss=((target[sequence_num]) - torch.mean(output[index])) ** 2
-
+            loss = ((target[sequence_num]) - output[0]) ** 2
 
             for index in range(0, number_of_seq_per_batch):
                 sequence_num  = samples_indexes[batch * number_of_seq_per_batch + index]
 
-                loss += regularization_penalty(hn[index] ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
+                loss += ((target[sequence_num]) - output[index]) ** 2 #+ regularization_penalty(hn[index] ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
 
                 #print (str(sequence_num)+' loss' + str(loss.data[0])) #+ ' regularization penalty ' + str(regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y).data[0]))
 
@@ -333,7 +332,7 @@ if __name__ == "__main__":
 
             if sequence_num == 100 * int(sequence_num / 100): print(sequence_num)
 
-        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N14_01', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 6 +fully_conn, *5 zero load,')
+        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N14_02', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 6 +fully_conn, *5 zero load,')
 
 
         #here i create figure with the history of training and validation
@@ -342,7 +341,7 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N14_01')
+        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/24_06_18_X-Time_N12/', 'Error_Conv+LSTM_N14_02')
 
 
 
@@ -362,7 +361,7 @@ if __name__ == "__main__":
 
 
         # ... after training, save your model
-        torch.save([model_convolutional_3D, fully_connected_layer_1], '№14_model_01.pt')
+        torch.save([model_convolutional_3D, fully_connected_layer_1], '№14_model_02.pt')
 
 
 
