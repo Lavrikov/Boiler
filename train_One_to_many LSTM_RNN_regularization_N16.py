@@ -194,7 +194,7 @@ if __name__ == "__main__":
 
 
     # The LSTM model part
-    hidden_layer, hidden_features= 1, reg_layer1_x * reg_layer1_y + reg_layer2_x * reg_layer2_y + reg_layer3_x * reg_layer3_y
+    hidden_layer, hidden_features= 2, reg_layer1_x * reg_layer1_y + reg_layer2_x * reg_layer2_y + reg_layer3_x * reg_layer3_y
     print('hidden_features='+str(hidden_features))
 
     LSTM= torch.nn.LSTM(hidden_features, input.data.shape[2], hidden_layer).cuda()

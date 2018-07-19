@@ -212,12 +212,12 @@ if __name__ == "__main__":
 
     video_length = 12000
     number_of_samples_lstm, first_sample_lstm = 65 * video_length, 0 * video_length
-    number_of_samples_lstm_validation, first_sample_lstm_validation = 19 * video_length, 77 * video_length
+    number_of_samples_lstm_validation, first_sample_lstm_validation = 12 * video_length, 65 * video_length
 
 
     #here i load the video dataset like a group of a pictures and view some pictures
     basePath=os.path.dirname(os.path.abspath(__file__))
-    face_dataset = FramesDataset(basePath+'/train/annotations.csv',basePath+ '/train')
+    face_dataset = FramesDataset(basePath+'/train/annotations_dark.csv',basePath+ '/train')
     test_dataset(face_dataset,first_sample_lstm_validation)
 
 
@@ -368,7 +368,7 @@ if __name__ == "__main__":
 
             if sequence_num == 100 * int(sequence_num / 100): print(sequence_num)
 
-        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/16_06_18_X-Time_N10/', 'Error_Conv+LSTM_N10_04', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 4 + LSTM_+fully_conn, *5 zero load,')
+        #visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/16_06_18_X-Time_N10/', 'Error_Conv+LSTM_N10_04', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 4 + LSTM_+fully_conn, *5 zero load,')
 
 
         #here i create figure with the history of training and validation
@@ -377,7 +377,7 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/16_06_18_X-Time_N10/', 'Error_Conv+LSTM+Fully_con_N10_04')
+        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/17_07_18_X-Time_N11/', 'Error_Conv+LSTM+Fully_con_N10_06')
 
 
 
@@ -397,7 +397,7 @@ if __name__ == "__main__":
 
 
         # ... after training, save your model
-        torch.save([model_convolutional_2d,model_convolutional_1d, LSTM, fully_connected_layer1], '№10_model_04.pt')
+        torch.save([model_convolutional_2d,model_convolutional_1d, LSTM, fully_connected_layer1], '№10_model_06.pt')
 
 
 

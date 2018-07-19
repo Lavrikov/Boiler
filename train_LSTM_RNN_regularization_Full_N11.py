@@ -62,7 +62,7 @@ def test_dataset(face_dataset,from_frame,video_length):
     # visualize some data
     sample = face_dataset[1]
     print(1, sample['frame'].shape, sample['heat_transfer'].shape)
-    for j in range(0, 10):
+    for j in range(0, 1):
         for i in range(1, 11):
             # here i calculate statistics of bubble boundaries appeariance at every coordinate of image with multiplication by 1000
             SummResult = face_dataset[from_frame + video_length* i + video_length * 10 * j ]['frame']
@@ -187,13 +187,13 @@ if __name__ == "__main__":
     print('Cuda available?  '+ str(torch.cuda.is_available())+ ', videocard  '+ str(torch.cuda.device_count()))
 
     video_length = 12000
-    number_of_samples_lstm, first_sample_lstm = 86 * video_length, 0 * video_length
-    number_of_samples_lstm_validation, first_sample_lstm_validation = 19 * video_length, 87 * video_length
+    number_of_samples_lstm, first_sample_lstm = 65 * video_length, 0 * video_length
+    number_of_samples_lstm_validation, first_sample_lstm_validation = 12 * video_length, 65 * video_length
 
 
     #here i load the video dataset like a group of a pictures and view some pictures
     basePath=os.path.dirname(os.path.abspath(__file__))
-    face_dataset = FramesDataset(basePath+'/train/annotations.csv',basePath+ '/train')
+    face_dataset = FramesDataset(basePath+'/train/annotations_dark.csv',basePath+ '/train')
     test_dataset(face_dataset,first_sample_lstm,video_length)
 
 
@@ -325,7 +325,7 @@ if __name__ == "__main__":
 
             if sequence_num == 100 * int(sequence_num / 100): print(sequence_num)
 
-        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/20_06_18_X-Time_N11/', 'Error_Conv+LSTM_N11_05', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 4 + LSTM_+fully_conn, *5 zero load,')
+        #visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/17_07_18_X-Time_N11/', 'Error_Conv+LSTM_N11_06', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 4 + LSTM_+fully_conn, *5 zero load,')
 
 
         #here i create figure with the history of training and validation
@@ -334,7 +334,7 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/20_06_18_X-Time_N11/', 'Error_Conv+LSTM+Fully_con_N11_05')
+        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/17_07_18_X-Time_N11/', 'Error_Conv+LSTM+Fully_con_N11_06')
 
 
 
@@ -354,7 +354,7 @@ if __name__ == "__main__":
 
 
         # ... after training, save your model
-        torch.save([LSTM, fully_connected_layer1], '№11_model_05.pt')
+        torch.save([LSTM, fully_connected_layer1], '№11_model_06.pt')
 
 
 
