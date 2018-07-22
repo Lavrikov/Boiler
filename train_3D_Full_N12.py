@@ -287,7 +287,7 @@ if __name__ == "__main__":
             for index in range(0, number_of_seq_per_batch):
                 sequence_num  = samples_indexes[batch * number_of_seq_per_batch + index]
 
-                loss += ((target[sequence_num]) - output[index]) ** 2 + regularization_penalty(hn[index] ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
+                loss += ((target[sequence_num]) - output[index]) ** 2 #+ regularization_penalty(hn[index] ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
 
                 #print (str(sequence_num)+' loss' + str(loss.data[0])) #+ ' regularization penalty ' + str(regularization_penalty( hn ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y).data[0]))
 
@@ -342,7 +342,7 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/17_07_18_X-Time_N11/', 'Error_Conv+LSTM_N12_12')
+        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/17_07_18_X-Time_N11/', 'Error_Conv+LSTM_N12_13')
 
 
 
@@ -362,7 +362,7 @@ if __name__ == "__main__":
 
 
         # ... after training, save your model
-        torch.save([model_convolutional_3D, fully_connected_layer_1], '№12_model_12.pt')
+        torch.save([model_convolutional_3D, fully_connected_layer_1], '№12_model_13.pt')
 
 
 

@@ -149,7 +149,7 @@ def target_generator( face_dataset, number_of_sequences, number_of_farme_per_bat
     print('target generation (heat load)')
     for sequence_num in range(0, number_of_sequences):
         sample_num = first_sample_lstm + sequence_num * number_of_farme_per_batch
-        print(sample_num)
+        #print(sample_num)
         target[sequence_num] = float(face_dataset[sample_num]['heat_transfer']) / 100000
 
         # put all video to one tensor (GPU or not)
@@ -161,7 +161,7 @@ def target_generator( face_dataset, number_of_sequences, number_of_farme_per_bat
     print('target validation generation (heat load)')
     for sequence_num in range(0, number_of_sequences_validation):
         sample_num = first_sample_lstm_validation + sequence_num * number_of_farme_per_batch
-        print(sample_num)
+        #print(sample_num)
         target_validation[sequence_num] = float(face_dataset[sample_num]['heat_transfer']) / 100000
 
 
@@ -198,7 +198,7 @@ if __name__ == "__main__":
 
 
     #below I init model parts
-    zero_load_repeat,number_of_farme_per_batch=0, 300,
+    zero_load_repeat,number_of_farme_per_batch=0, 3
     number_of_sequences=int(math.floor(number_of_samples_lstm/number_of_farme_per_batch))
     number_of_sequences_validation=int(math.floor(number_of_samples_lstm_validation/number_of_farme_per_batch))
     error, error_by_heat, heat_predicted = torch.cuda.FloatTensor(number_of_sequences),torch.cuda.FloatTensor(number_of_sequences), torch.cuda.FloatTensor(number_of_sequences)
@@ -279,7 +279,7 @@ if __name__ == "__main__":
 
             optimizerLSTM.zero_grad()
 
-            if index==100*int(index/100): print(index)
+            if index==10000*int(index/10000): print(index)
 
             #here i repeat passing through zero load elements, to increase their weight at the all data
 
@@ -323,7 +323,7 @@ if __name__ == "__main__":
 
             heat_predicted_validation[sequence_num] = torch.max((output)).data[0]
 
-            if sequence_num == 100 * int(sequence_num / 100): print(sequence_num)
+            if sequence_num == 10000 * int(sequence_num / 10000): print(sequence_num)
 
         #visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/17_07_18_X-Time_N11/', 'Error_Conv+LSTM_N11_06', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 4 + LSTM_+fully_conn, *5 zero load,')
 
@@ -334,7 +334,7 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/17_07_18_X-Time_N11/', 'Error_Conv+LSTM+Fully_con_N11_06')
+        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/17_07_18_X-Time_N11/', 'Error_LSTM(0.0078125)_regularization+Fully_con_N11_14')
 
 
 
@@ -354,7 +354,7 @@ if __name__ == "__main__":
 
 
         # ... after training, save your model
-        torch.save([LSTM, fully_connected_layer1], '№11_model_06.pt')
+        torch.save([LSTM, fully_connected_layer1], '№11_model_14.pt')
 
 
 
