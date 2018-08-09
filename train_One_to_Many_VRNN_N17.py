@@ -103,7 +103,7 @@ model = VRNN(x_dim, h_dim, z_dim, n_layers)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 for epoch in range(1, n_epochs + 1):
-
+    output = model.sample2(batch_size, 14)
     # training + testing
     train(epoch)
 
@@ -117,6 +117,22 @@ for epoch in range(1, n_epochs + 1):
     output = model.sample(batch_size, 14)
     print('show generated video')
     data = np.empty(batch_size, dtype=object)
+    for k in range(batch_size):
+        reg = output[k].numpy()
+        reg_original = train_loader.dataset[k]['frame'] / 255
+        data[k] = np.vstack((reg / (np.max(reg) - np.min(reg)), reg_original))
+
+    fig = plt.figure()
+    plot = plt.matshow(data[0], cmap='gray', fignum=0)
+    #plt.title(' W/m2' + str(100000 * train_loader.dataset[k]['heat_transfer'] / 255))
+
+    anim = animation.FuncAnimation(fig, update, init_func=init, frames=batch_size, interval=30,
+                                       blit=True)
+
+    plt.show()
+
+    output = model.sample2(batch_size, 14)
+
     for k in range(batch_size):
         reg = output[k].numpy()
         reg_original = train_loader.dataset[k]['frame'] / 255

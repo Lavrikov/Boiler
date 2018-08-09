@@ -149,12 +149,43 @@ class VRNN(nn.Module):
                 phi_x_t = self.phi_x(dec_mean_t)
 
                 #recurrence
-                _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
-
+                output, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
+                print(output)
                 sample[t,i] = dec_mean_t.data
 
                 h_by_row[t] = h
 
+
+        return sample
+
+    def sample2(self, seq_len, batch_size):
+
+        sample = torch.zeros(seq_len,batch_size, self.x_dim)
+
+        h = Variable(torch.zeros(self.n_layers, batch_size, self.h_dim))
+
+        for t in range(seq_len):
+
+            #prior
+            prior_t = self.prior(h[-1])
+            prior_mean_t = self.prior_mean(prior_t)
+            prior_std_t = self.prior_std(prior_t)
+
+            #sampling and reparameterization
+            z_t = self._reparameterized_sample(prior_mean_t, prior_std_t)
+            phi_z_t = self.phi_z(z_t)
+
+            #decoder
+            dec_t = self.dec(torch.cat([phi_z_t, h[-1]], 1))
+            dec_mean_t = self.dec_mean(dec_t)
+            #dec_std_t = self.dec_std(dec_t)
+
+            phi_x_t = self.phi_x(dec_mean_t)
+
+            #recurrence
+            output, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
+            print(dec_mean_t)
+            sample[t] = dec_mean_t.data
 
         return sample
 
