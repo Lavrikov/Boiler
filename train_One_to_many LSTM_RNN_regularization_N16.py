@@ -99,6 +99,16 @@ def regularization_penalty(hn,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer
 
     return penalty
 
+def regularization_penalty_2(input, treshold):
+    m=torch.nn.ReLU()
+    penalty=0
+    i_range, j_range=input.data.shape[0],input.data.shape[2]
+    for i in range(0,i_range):
+        penalty=penalty + torch.sum(m(torch.abs(input[i,0,0:j_range-1]-input[i,0,1:j_range])-treshold))**2
+
+
+    return penalty
+
 
 def target_generator( face_dataset, number_of_sequences, number_of_farme_per_batch, number_of_sequences_validation):
 
@@ -126,17 +136,11 @@ def target_generator( face_dataset, number_of_sequences, number_of_farme_per_bat
     return Variable(target), Variable(target_validation)
 
 
-def forward(input,number_of_farme_per_batch):
+def forward(input, number_of_farme_per_batch, h0, c0):
 
-    reg = fully_connected_layer1(input)
-    D = reg.data.size()
-    B= int(math.floor(D[0]/number_of_farme_per_batch))
-    reg = reg.view(number_of_farme_per_batch, 1, B)
+    output, (hn, cn) = LSTM(input,(h0,c0))
 
-    output, (hn, cn) = LSTM(reg)
-
-
-    return reg, output
+    return output
 
 
 def init():
@@ -160,24 +164,25 @@ if __name__ == "__main__":
     print('Cuda available?  '+ str(torch.cuda.is_available())+ ', videocard  '+ str(torch.cuda.device_count()))
 
     video_length = 12000
-    number_of_samples_lstm, first_sample_lstm = 19 * video_length, 33 * video_length #19
-    number_of_samples_lstm_validation, first_sample_lstm_validation = 2 * video_length, 87 * video_length #19
+    number_of_samples_lstm, first_sample_lstm = 5 * video_length, 46 * video_length #19
+    number_of_samples_lstm_validation, first_sample_lstm_validation = 1 * video_length, 75 * video_length #19
 
 
     #here i load the video dataset like a group of a pictures and view some pictures
     basePath=os.path.dirname(os.path.abspath(__file__))
-    face_dataset = FramesDataset(basePath+'/train/annotations.csv',basePath+ '/train')
+    face_dataset = FramesDataset(basePath+'/train/annotations_dark.csv',basePath+ '/train')
     #test_dataset(face_dataset,first_sample_lstm,video_length)
 
 
     #below I init model parts
-    zero_load_repeat,number_of_farme_per_batch=0, 300,
+    zero_load_repeat,number_of_farme_per_batch=0, 20
     number_of_sequences=int(math.floor(number_of_samples_lstm/number_of_farme_per_batch))
     number_of_sequences_validation=int(math.floor(number_of_samples_lstm_validation/number_of_farme_per_batch))
     error, error_by_heat, heat_predicted = torch.cuda.FloatTensor(number_of_sequences),torch.cuda.FloatTensor(number_of_sequences), torch.cuda.FloatTensor(number_of_sequences)
     error_validation, error_by_heat_validation, heat_predicted_validation =torch.cuda.FloatTensor(number_of_sequences_validation),torch.cuda.FloatTensor(number_of_sequences_validation),torch.cuda.FloatTensor(number_of_sequences_validation)
 
     input = Variable(torch.cuda.FloatTensor(number_of_farme_per_batch, 1, face_dataset[first_sample_lstm]['frame'].shape[0]*face_dataset[first_sample_lstm]['frame'].shape[1]).zero_())
+
 
     sequence_num=0
     print('size of one dimension image'+str(input.data.shape[2]))
@@ -194,27 +199,29 @@ if __name__ == "__main__":
 
 
     # The LSTM model part
-    hidden_layer, hidden_features= 2, reg_layer1_x * reg_layer1_y + reg_layer2_x * reg_layer2_y + reg_layer3_x * reg_layer3_y
+    hidden_layer, hidden_features= 3, 1
     print('hidden_features='+str(hidden_features))
+    one_to_many_input=Variable(torch.cuda.FloatTensor(number_of_farme_per_batch, 1, hidden_features).zero_())
 
     LSTM= torch.nn.LSTM(hidden_features, input.data.shape[2], hidden_layer).cuda()
-    fully_connected_layer1= torch.nn.Linear(1, hidden_features*number_of_farme_per_batch).cuda()
+
     loss_new=torch.nn.SmoothL1Loss()
 
     optimizerLSTM=torch.optim.Adadelta([
-                                        {'params': LSTM.parameters()},
-                                        {'params': fully_connected_layer1.parameters()}
+                                        {'params': LSTM.parameters()}
                                         ], lr=1)
 
 
     # load pretrained model if it is required
     #[rnn, conv_layer_1, conv_layer_2, conv_layer_3, conv_layer_4, conv_layer_5] = torch.load('№7_model_01.pt')
     #rnn.flatten_parameters()
+    h0 = torch.autograd.Variable(torch.cuda.FloatTensor(hidden_layer,1,input.data.shape[2])).fill_(0.01)
+    c0 = torch.autograd.Variable(torch.cuda.FloatTensor(hidden_layer,1,input.data.shape[2])).fill_(0.01)
 
 
     #Cycle parameters
     target, target_validation = target_generator(face_dataset, number_of_sequences, number_of_farme_per_batch, number_of_sequences_validation)
-    epoch_number, steps_to_print=90, number_of_sequences-1
+    epoch_number, steps_to_print=10, number_of_sequences-1
     train_vs_epoch,validation_vs_epoch=torch.cuda.FloatTensor(epoch_number).zero_(), torch.cuda.FloatTensor(epoch_number).zero_()
 
 
@@ -237,18 +244,20 @@ if __name__ == "__main__":
 
             input = 0.01 * (input - torch.mean(input)) / torch.max(torch.abs(input))
 
-            reg, output = forward(target[sequence_num],number_of_farme_per_batch)
+            one_to_many_input.fill_(target[sequence_num].data[0])
 
+            h0[0,0] = input[0,0]
+            c0[0,0] = input[0,0]
 
-            loss = torch.sum((input - output)**2)# + regularization_penalty(reg ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
+            output = forward(one_to_many_input,number_of_farme_per_batch,h0,c0)
 
-            print ('loss' + str(loss.data[0]) + ' regularization penalty ' + str(regularization_penalty( reg ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y).data[0]))
+            #penalty2= regularization_penalty_2(input, 0.001)
+
+            loss = torch.sum((input - output)**2) #+ penalty2 #+ output.norm(2)[0] #"+ regularization_penalty(reg ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y)
+
+            #print ('loss' + str(loss.data[0]) + ' regularization penalty ' + str(penalty2.data[0])) #str(regularization_penalty( reg ,reg_layer1_x, reg_layer1_y,reg_layer2_x, reg_layer2_y,reg_layer3_x, reg_layer3_y).data[0]))
 
             error[index] = loss.data[0]
-
-            #error_by_heat[sequence_num] = ((target[sequence_num]) - output).data[0]
-
-            #heat_predicted[sequence_num]=torch.max((output)).data[0]
 
             loss.backward()
 
@@ -256,28 +265,31 @@ if __name__ == "__main__":
 
             optimizerLSTM.zero_grad()
 
-            if index == 10 * int(index / 10):
-
+            if index == 1000 * int(index / 1000):
                 # show generated video
                 print('show generated video')
-                data = np.empty(number_of_farme_per_batch, dtype=object)  # Almacena los datos
+                data = np.empty(number_of_farme_per_batch, dtype=object)
 
                 # Leer todos los datos
                 for k in range(number_of_farme_per_batch):
-                    reg = output.data[k,0]
-                    reg = reg.view(face_dataset[first_sample_lstm]['frame'].shape[0], face_dataset[first_sample_lstm]['frame'].shape[1])
-                    data[k]=reg.cpu().numpy()
-
+                    reg = output.data[k, 0]
+                    reg = reg.view(face_dataset[first_sample_lstm]['frame'].shape[0],
+                                   face_dataset[first_sample_lstm]['frame'].shape[1]).cpu().numpy()
+                    reg_original = face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_batch + k][
+                                       'frame'] / 255
+                    data[k] = np.vstack((reg / (np.max(reg) - np.min(reg)), reg_original))
 
                 fig = plt.figure()
                 plot = plt.matshow(data[0], cmap='gray', fignum=0)
-                plt.title(' W/m2'+str(100000*target[sequence_num].data))
+                plt.title(' W/m2' + str(100000 * target[sequence_num].data))
 
-                anim = animation.FuncAnimation(fig, update, init_func=init, frames=number_of_farme_per_batch, interval=30, blit=True)
+                anim = animation.FuncAnimation(fig, update, init_func=init, frames=number_of_farme_per_batch, interval=30,
+                                               blit=True)
 
                 plt.show()
 
-        visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/20_06_18_X-Time_N11/', 'Error_Conv+LSTM_N15_01', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','Conv 4 + LSTM_+fully_conn, *5 zero load,')
+
+        #visualize.save_some_epoch_data(index, number_of_sequences-1, epoch, basePath, '/Models/LSTM/06_08_18_X-Time_N15/', 'Error_Conv+LSTM_N15_02', error_validation.cpu().numpy(), error_by_heat_validation.cpu().numpy(), 'verification','RNN_one_to_many,')
 
 
         #here i create figure with the history of training and validation
@@ -286,7 +298,7 @@ if __name__ == "__main__":
 
         validation_vs_epoch[epoch]=torch.mean(torch.abs(error_by_heat_validation))
 
-        visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/20_06_18_X-Time_N11/', 'Error_Conv+LSTM+Fully_con_N15_01')
+        #visualize.save_train_validation_picture(train_vs_epoch.cpu().numpy()[0:epoch+1],validation_vs_epoch.cpu().numpy()[0:epoch+1], basePath, '/Models/LSTM/06_08_18_X-Time_N15/', 'Error_RNN_one_to_many_N15_02')
 
 
 
@@ -306,8 +318,25 @@ if __name__ == "__main__":
 
 
         # ... after training, save your model
-        torch.save([LSTM, fully_connected_layer1], '№15_model_01.pt')
+        torch.save([LSTM], '№16_model_01.pt')
+
+# show generated video
+print('show generated video')
+data = np.empty(number_of_farme_per_batch, dtype=object)
 
 
+# Leer todos los datos
+for k in range(number_of_farme_per_batch):
+    reg = output.data[k,0]
+    reg = reg.view(face_dataset[first_sample_lstm]['frame'].shape[0], face_dataset[first_sample_lstm]['frame'].shape[1]).cpu().numpy()
+    reg_original = face_dataset[first_sample_lstm + sequence_num * number_of_farme_per_batch + k]['frame']/255
+    data[k]= np.vstack((reg/(np.max(reg)-np.min(reg)),reg_original))
 
 
+fig = plt.figure()
+plot = plt.matshow(data[0], cmap='gray', fignum=0)
+plt.title(' W/m2'+str(100000*target[sequence_num].data))
+
+anim = animation.FuncAnimation(fig, update, init_func=init, frames=number_of_farme_per_batch, interval=30, blit=True)
+
+plt.show()

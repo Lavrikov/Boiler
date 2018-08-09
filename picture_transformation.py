@@ -8,7 +8,7 @@ def resizeX(input):
     """
     :param input: Nupmy array
     """
-    size=( int(input.shape[1]/128),input.shape[0])
+    size=( int(input.shape[1]/2),input.shape[0])
     output=cv2.resize(input,size)
     return output
 
