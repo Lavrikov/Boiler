@@ -8,7 +8,7 @@ from torch.autograd import Variable
 import matplotlib.pyplot as plt 
 from model_VRNN import VRNN
 import os
-from frames_dataset import FramesDatasetVRNN
+from frames_dataset import FramesDataset
 from matplotlib import animation
 import numpy as np
 
@@ -25,7 +25,7 @@ def train(epoch):
         #transforming data
         #data = Variable(data)
         #to remove eventually
-        data = Variable(torch.unsqueeze(data['frame'],1)).float()
+        data = Variable(data['frame'].squeeze().transpose(0, 1)).float()
         data = (data - data.min().data[0]) / (data.max().data[0] - data.min().data[0])
 
         #forward + backward + optimize
@@ -75,7 +75,7 @@ def update(j):
 h_dim = 100
 z_dim = 16
 n_layers = 1
-n_epochs = 100
+n_epochs = 1
 clip = 10
 learning_rate = 1e-3
 batch_size = 128
@@ -88,8 +88,8 @@ torch.manual_seed(seed)
 #plt.ion()
 
 basePath = os.path.dirname(os.path.abspath(__file__))
-face_dataset = FramesDatasetVRNN(basePath + '/train/annotations_dark_VRNN.csv', basePath + '/train')
-x_dim = face_dataset[0]['frame'].shape[0]
+face_dataset = FramesDataset(basePath + '/train/annotations_single_bubble.csv', basePath + '/train')
+x_dim = face_dataset[0]['frame'].shape[1]
 
 print('init model + optimizer + datasets')
 train_loader = torch.utils.data.DataLoader(
@@ -113,20 +113,29 @@ for epoch in range(1, n_epochs + 1):
         torch.save(model.state_dict(), fn)
         print('Saved model to '+fn)
 
+
 # show generated video
-output = model.sample2(batch_size)
-print('show generated video')
-data = np.empty(batch_size, dtype=object)
-for k in range(batch_size):
-    reg = np.resize(output[k].numpy(),(48,85))
-    reg_original = np.resize(train_loader.dataset[k]['frame'] / 255,(48,85))
-    data[k] = np.vstack((reg / (np.max(reg) - np.min(reg)), reg_original))
+for batch_idx, data in enumerate(train_loader):
 
-fig = plt.figure()
-plot = plt.matshow(data[0], cmap='gray', fignum=0)
-#plt.title(' W/m2' + str(100000 * train_loader.dataset[k]['heat_transfer'] / 255))
+    #transforming data
+    #data = Variable(data)
+    #to remove eventually
+    data = Variable(data['frame'].squeeze().transpose(0, 1)).float()
+    data = (data - data.min().data[0]) / (data.max().data[0] - data.min().data[0])
 
-anim = animation.FuncAnimation(fig, update, init_func=init, frames=batch_size, interval=30,
+    #output = model.sample(batch_size, face_dataset[0]['frame'].shape[0] )
+    output = model.sample_reconstruction(face_dataset[0]['frame'].shape[0], data, 25)
+    print('show generated video')
+    data = np.empty(batch_size, dtype=object)
+    for k in range(batch_size):
+        reg = output[k].numpy()
+        reg_original = train_loader.dataset[k]['frame'] / 255
+        data[k] = np.vstack((reg / (np.max(reg) - np.min(reg)), reg_original))
+
+    fig = plt.figure()
+    plot = plt.matshow(data[0], cmap='gray', fignum=0)
+    #plt.title(' W/m2' + str(100000 * train_loader.dataset[k]['heat_transfer'] / 255))
+
+    anim = animation.FuncAnimation(fig, update, init_func=init, frames=batch_size, interval=120,
                                        blit=True)
-
-plt.show()
+    plt.show()

@@ -79,7 +79,7 @@ class VRNN(nn.Module):
         nll_loss = 0
 
         h = Variable(torch.zeros(self.n_layers, x.size(1), self.h_dim))
-        for t in range(x.size(0)):
+        for t in range(x.size(0)-1,0,-1):
 
             phi_x_t = self.phi_x(x[t])
 
@@ -126,11 +126,11 @@ class VRNN(nn.Module):
         h_by_row = Variable(torch.zeros(seq_len,self.n_layers, 1, self.h_dim))
         h = Variable(torch.zeros(self.n_layers, 1, self.h_dim))
 
-        for i in range(0,batch_size):# for video generation
+        for t in range(batch_size-1,1,-1):#row number
 
-            for t in range(seq_len):
+            for y in range(seq_len):# for video generation, frame number
 
-                h = h_by_row[t]
+                h = h_by_row[y]
 
                 #prior
                 prior_t = self.prior(h[-1])
@@ -149,20 +149,19 @@ class VRNN(nn.Module):
                 phi_x_t = self.phi_x(dec_mean_t)
 
                 #recurrence
-                output, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
-                print(output)
-                sample[t,i] = dec_mean_t.data
+                _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
 
-                h_by_row[t] = h
+                sample[y,t] = dec_mean_t.data
+
+                h_by_row[y] = h
 
 
         return sample
 
-    def sample2(self, seq_len, batch_size):
+    def sample2(self, seq_len):
 
-        sample = torch.zeros(seq_len,batch_size, self.x_dim)
-
-        h = Variable(torch.zeros(self.n_layers, batch_size, self.h_dim))
+        sample = torch.zeros(seq_len, self.x_dim)
+        h = Variable(torch.zeros(self.n_layers, 1, self.h_dim))
 
         for t in range(seq_len):
 
@@ -183,12 +182,84 @@ class VRNN(nn.Module):
             phi_x_t = self.phi_x(dec_mean_t)
 
             #recurrence
-            output, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
-            print(dec_mean_t)
+            _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
+
             sample[t] = dec_mean_t.data
+
 
         return sample
 
+    def sample_reconstruction(self, Y_size, x, x_prior):
+        # there is the reconstruction a part of image
+        # x_prior number of prior rows
+        seq_len=x.size(1)
+        sample = torch.zeros(seq_len,Y_size, self.x_dim)
+
+        # first rows initialization
+        h_rec = Variable(torch.zeros(self.n_layers, seq_len, self.h_dim))
+        for t in range(Y_size - 1, Y_size - x_prior - 1, -1):
+            phi_x_t = self.phi_x(x[t])
+
+            # encoder
+            enc_t = self.enc(torch.cat([phi_x_t, h_rec[-1]], 1))
+            enc_mean_t = self.enc_mean(enc_t)
+            enc_std_t = self.enc_std(enc_t)
+
+            # prior
+            prior_t = self.prior(h_rec[-1])
+            prior_mean_t = self.prior_mean(prior_t)
+            prior_std_t = self.prior_std(prior_t)
+
+            # sampling and reparameterization
+            z_t = self._reparameterized_sample(enc_mean_t, enc_std_t)
+            phi_z_t = self.phi_z(z_t)
+
+            # decoder
+            dec_t = self.dec(torch.cat([phi_z_t, h_rec[-1]], 1))
+            dec_mean_t = self.dec_mean(dec_t)
+            dec_std_t = self.dec_std(dec_t)
+
+            # recurrence
+            _, h_rec = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h_rec)
+            # sample[:, t] = dec_mean_t.data[:]
+            sample[:, t] = x.data[t,:]
+
+        h_by_frame = Variable(torch.zeros(seq_len, self.n_layers, 1, self.h_dim))
+
+        h_by_frame[:,0,0]=h_rec[0,:] # initialization of the prior rows state
+
+        for t in range(Y_size-1-x_prior,1,-1):
+            # row numbers excluding prior rows
+
+            for i in range(seq_len):# for video generation, frame number
+
+                h = h_by_frame[i]
+
+                #prior
+                prior_t = self.prior(h[-1])
+                prior_mean_t = self.prior_mean(prior_t)
+                prior_std_t = self.prior_std(prior_t)
+
+                #sampling and reparameterization
+                z_t = self._reparameterized_sample(prior_mean_t, prior_std_t)
+                phi_z_t = self.phi_z(z_t)
+
+                #decoder
+                dec_t = self.dec(torch.cat([phi_z_t, h[-1]], 1))
+                dec_mean_t = self.dec_mean(dec_t)
+                #dec_std_t = self.dec_std(dec_t)
+
+                phi_x_t = self.phi_x(dec_mean_t)
+
+                #recurrence
+                _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
+
+                sample[i,t] = dec_mean_t.data
+
+                h_by_frame[i] = h
+
+
+        return sample
 
     def reset_parameters(self, stdv=1e-1):
         for weight in self.parameters():
