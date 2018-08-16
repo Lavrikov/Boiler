@@ -72,11 +72,11 @@ def update(j):
 
 # hyperparameters
 
-h_dim = 100
+h_dim = 2000
 z_dim = 16
 n_layers = 1
-n_epochs = 1
-clip = 10
+n_epochs = 10
+clip = 1
 learning_rate = 1e-3
 batch_size = 128
 seed = 128
@@ -94,7 +94,7 @@ x_dim = face_dataset[0]['frame'].shape[1]
 print('init model + optimizer + datasets')
 train_loader = torch.utils.data.DataLoader(
     face_dataset,
-    batch_size=batch_size, shuffle=True)
+    batch_size=batch_size)
 
 print(train_loader.dataset[0])
 
@@ -129,7 +129,7 @@ for batch_idx, data in enumerate(train_loader):
     data = np.empty(batch_size, dtype=object)
     for k in range(batch_size):
         reg = output[k].numpy()
-        reg_original = train_loader.dataset[k]['frame'] / 255
+        reg_original = train_loader.dataset[batch_idx*batch_size + k]['frame'] / 255
         data[k] = np.vstack((reg / (np.max(reg) - np.min(reg)), reg_original))
 
     fig = plt.figure()
