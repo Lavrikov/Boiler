@@ -88,9 +88,9 @@ class FramesDataset(Dataset):
 
         return sample
 
-class FramesDatasetVRNN(Dataset):
+class FramesDataset_Mono(Dataset):
     """
-    Датасет отдельных кадров видео
+    Датасет отдельных кадров видео, кдры вытянуты в одномерный массив для удобства работы с RNN
     """
     def __init__(self, annotations_csv_file, video_dir, transform=None):
         """
@@ -150,10 +150,13 @@ class FramesDatasetVRNN(Dataset):
             i = 0
             while success:
                 success, frame = cap.read()
+
                 if frame is not None:
 
                     #self.videos_cache[filename][i] = picture_transformation.resizeX(frame[-17:-3, :, 0])  # -11:-1 desrease the vertical size of the image by cut it, decreze horizontal size by resizing
-                    self.videos_cache[filename][i] = np.ndarray.flatten(picture_transformation.resizeX(frame[:, :, 0]))  # -11:-1 desrease the vertical size of the image by cut it, decreze horizontal size by resizing
+
+                    cach=picture_transformation.resizeX(frame[:, :, 0])
+                    self.videos_cache[filename][i] = np.resize(cach,cach.shape[0]*cach.shape[1])  # -11:-1 desrease the vertical size of the image by cut it, decreze horizontal size by resizing
 
                     i += 1
             cap.release()

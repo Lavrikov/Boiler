@@ -6,7 +6,7 @@ import torch.utils.data
 from torchvision import datasets, transforms
 from torch.autograd import Variable
 import matplotlib.pyplot as plt 
-from model_VRNN import VRNN
+from model_VRNN_CUDA import VRNN
 import os
 from frames_dataset import FramesDataset
 from matplotlib import animation
@@ -25,7 +25,7 @@ def train(epoch):
         #transforming data
         #data = Variable(data)
         #to remove eventually
-        data = Variable(data['frame'].squeeze().transpose(0, 1)).float()
+        data = Variable(data['frame'].squeeze().transpose(0, 1)).float().cuda()
         data = (data - data.min().data[0]) / (data.max().data[0] - data.min().data[0])
 
         #forward + backward + optimize
@@ -72,10 +72,10 @@ def update(j):
 
 # hyperparameters
 
-h_dim = 500
+h_dim = 100
 z_dim = 16
 n_layers = 1
-n_epochs = 10
+n_epochs = 1
 clip = 1
 learning_rate = 1e-3
 batch_size = 128
@@ -94,7 +94,7 @@ x_dim = face_dataset[0]['frame'].shape[1]
 print('init model + optimizer + datasets')
 train_loader = torch.utils.data.DataLoader(
     face_dataset,
-    batch_size=batch_size)
+    batch_size=batch_size, pin_memory=True)
 
 print(train_loader.dataset[0])
 
@@ -120,15 +120,15 @@ for batch_idx, data in enumerate(train_loader):
     #transforming data
     #data = Variable(data)
     #to remove eventually
-    data = Variable(data['frame'].squeeze().transpose(0, 1)).float()
+    data = Variable(data['frame'].squeeze().transpose(0, 1)).float().cuda()
     data = (data - data.min().data[0]) / (data.max().data[0] - data.min().data[0])
 
     #output = model.sample(batch_size, face_dataset[0]['frame'].shape[0] )
-    output = model.sample_reconstruction(face_dataset[0]['frame'].shape[0], data, 25)
+    output = model.sample_reconstruction(face_dataset[0]['frame'].shape[0], data, 15)
     print('show generated video')
     data = np.empty(batch_size, dtype=object)
     for k in range(batch_size):
-        reg = output[k].numpy()
+        reg = output[k].cpu().numpy()
         reg_original = train_loader.dataset[batch_idx*batch_size + k]['frame'] / 255
         data[k] = np.vstack((reg / (np.max(reg) - np.min(reg)), reg_original))
 
