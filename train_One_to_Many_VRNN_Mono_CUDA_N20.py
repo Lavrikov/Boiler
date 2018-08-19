@@ -164,3 +164,39 @@ for epoch in range(1, n_epochs + 1):
                                            blit=True)
 
     plt.show()
+
+    # show generated video
+    output = model.sample2(batch_size)
+    print('show generated video')
+    data = np.empty(batch_size, dtype=object)
+    for k in range(batch_size):
+        reg = np.resize(output[k].cpu().numpy(),(48,85))
+        reg_original = np.resize(train_loader.dataset[k]['frame'] / 255,(48,85))
+        data[k] = np.vstack((reg / (np.max(reg) - np.min(reg)), reg_original))
+
+    fig = plt.figure()
+    plot = plt.matshow(data[0], cmap='gray', fignum=0)
+    #plt.title(' W/m2' + str(100000 * train_loader.dataset[k]['heat_transfer'] / 255))
+
+    anim = animation.FuncAnimation(fig, update, init_func=init, frames=batch_size, interval=30,
+                                           blit=True)
+
+    plt.show()
+
+    # show generated video
+    output = model.sample2_reverse(batch_size)
+    print('show generated video')
+    data = np.empty(batch_size, dtype=object)
+    for k in range(batch_size):
+        reg = np.resize(output[k].cpu().numpy(), (48, 85))
+        reg_original = np.resize(train_loader.dataset[k]['frame'] / 255, (48, 85))
+        data[k] = np.vstack((reg / (np.max(reg) - np.min(reg)), reg_original))
+
+    fig = plt.figure()
+    plot = plt.matshow(data[0], cmap='gray', fignum=0)
+    # plt.title(' W/m2' + str(100000 * train_loader.dataset[k]['heat_transfer'] / 255))
+
+    anim = animation.FuncAnimation(fig, update, init_func=init, frames=batch_size, interval=30,
+                                   blit=True)
+
+    plt.show()

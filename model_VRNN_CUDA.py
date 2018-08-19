@@ -189,6 +189,38 @@ class VRNN(nn.Module):
 
         return sample
 
+
+    def sample2_reverse(self, seq_len):
+
+        sample = torch.zeros(seq_len, self.x_dim).cuda()
+        h = Variable(torch.zeros(self.n_layers, 1, self.h_dim)).cuda()
+
+        for t in range(0,seq_len):
+
+            #prior
+            prior_t = self.prior(h[-1])
+            prior_mean_t = self.prior_mean(prior_t)
+            prior_std_t = self.prior_std(prior_t)
+
+            #sampling and reparameterization
+            z_t = self._reparameterized_sample(prior_mean_t, prior_std_t)
+            phi_z_t = self.phi_z(z_t)
+
+            #decoder
+            dec_t = self.dec(torch.cat([phi_z_t, h[-1]], 1))
+            dec_mean_t = self.dec_mean(dec_t)
+            #dec_std_t = self.dec_std(dec_t)
+
+            phi_x_t = self.phi_x(dec_mean_t)
+
+            #recurrence
+            _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
+
+            sample[t] = dec_mean_t.data
+
+
+        return sample
+
     def sample_reconstruction(self, Y_size, x, x_prior):
         # there is the reconstruction a part of image
         # x_prior number of prior rows
