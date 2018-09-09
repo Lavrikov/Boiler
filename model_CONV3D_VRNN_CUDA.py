@@ -15,28 +15,27 @@ inference, prior, and generating models."""
 
 
 class VRNN(nn.Module):
-    def __init__(self, x_dim, h_dim, z_dim, n_layers, conv_filters, bias=False):
+    def __init__(self, x_dim, h_dim, z_dim, n_layers, conv_filters, frame_x, frame_y, bias=False):
         super(VRNN, self).__init__()
 
         self.x_dim = x_dim
         self.h_dim = h_dim
         self.z_dim = z_dim
         self.n_layers = n_layers
+        self.frame_x=frame_x
+        self.frame_y=frame_y
 
-        #feature-extracting transformations
+        #feature-extracting transformations, h_dim must compare this output size to work correctly
         self.phi_x = nn.Sequential(
-            torch.nn.Conv3d(1, conv_filters, 3),
-            torch.nn.MaxPool3d((2, 2, 1)),
-            torch.nn.Conv3d(conv_filters, conv_filters * 4, (3,3,1)),
-            torch.nn.MaxPool3d((2, 2, 1)),
-            torch.nn.Conv3d(conv_filters * 4, conv_filters * 8, (3,3,1)),
-            torch.nn.MaxPool3d((1, 2, 1)),
-            torch.nn.Conv3d(conv_filters * 8, conv_filters * 16, (3,3,1)),
-            torch.nn.MaxPool3d((2, 2, 1)),
-            torch.nn.Conv3d(conv_filters * 16, conv_filters * 32, (3,3,1)),
-            torch.nn.MaxPool3d((2, 2, 2)),
-            nn.Linear(960, h_dim),
-            nn.ReLU()).cuda()
+            nn.Conv3d(1, conv_filters, 3),
+            nn.MaxPool3d((2, 2, 1)),
+            nn.Conv3d(conv_filters, conv_filters * 4, (3,3,1)),
+            nn.MaxPool3d((2, 2, 1)),
+            nn.Conv3d(conv_filters * 4, conv_filters * 8, (3,3,1)),
+            nn.MaxPool3d((1, 2, 1)),
+            nn.Conv3d(conv_filters * 8, conv_filters * 16, (3,3,1)),
+            nn.MaxPool3d((2, 2, 1)),
+            nn.Conv3d(conv_filters * 16, conv_filters * 32, (3,3,1))).cuda()
         self.phi_z = nn.Sequential(
             nn.Linear(z_dim, h_dim),
             nn.ReLU()).cuda()
@@ -65,14 +64,14 @@ class VRNN(nn.Module):
         self.dec = nn.Sequential(
             nn.Linear(h_dim + h_dim, h_dim),
             nn.ReLU(),
-            nn.Linear(h_dim, h_dim),
+            nn.Linear(h_dim, frame_x*frame_y), #create the one dimensional tensor with lengh equal the frame size
             nn.ReLU()).cuda()
         self.dec_std = nn.Sequential(
-            nn.Linear(h_dim, x_dim),
+            nn.Linear(frame_x*frame_y, x_dim),
             nn.Softplus()).cuda()
         #self.dec_mean = nn.Linear(h_dim, x_dim)
-        self.dec_mean = nn.Sequential(
-            nn.Linear(h_dim, x_dim),
+        self.dec_mean = nn.Sequential( #create 3 frame from 1
+            nn.Linear(1, 3),
             nn.Sigmoid()).cuda()
 
         #recurrence
@@ -86,10 +85,12 @@ class VRNN(nn.Module):
         kld_loss = 0
         nll_loss = 0
 
+        phi = self.phi_x(x).squeeze().unsqueeze(1)# calculate conv for whole batch and conjugate dimesions with the h-variable
         h = Variable(torch.zeros(self.n_layers, x.size(1), self.h_dim)).cuda()
+
         for t in range(x.size(0)-1,0,-1):
 
-            phi_x_t = self.phi_x(x[t])
+            phi_x_t = phi[t]
 
             #encoder eq.9 p(z|x)
             enc_t = self.enc(torch.cat([phi_x_t, h[-1]], 1))
@@ -107,7 +108,7 @@ class VRNN(nn.Module):
 
             #decoder eq.6 p(x|z)
             dec_t = self.dec(torch.cat([phi_z_t, h[-1]], 1))
-            dec_mean_t = self.dec_mean(dec_t)
+            dec_mean_t = self.dec_mean(dec_t.view(1,self.frame_y,self.frame_x,1))
             dec_std_t = self.dec_std(dec_t)
 
             #recurrence
