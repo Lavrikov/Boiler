@@ -6,9 +6,9 @@ import torch.utils.data
 from torchvision import datasets, transforms
 from torch.autograd import Variable
 import matplotlib.pyplot as plt 
-from model_VRNN_CUDA import VRNN
+from model_CONV3D_VRNN_CUDA import VRNN
 import os
-from frames_dataset import FramesDataset_Mono
+from frames_dataset import FramesDataset_Conv3D
 from matplotlib import animation
 import numpy as np
 
@@ -23,26 +23,6 @@ using unimodal isotropic gaussian distributions for
 inference, prior, and generating models."""
 
 
-def train_at_all(epoch, data_all):
-    train_loss = 0
-
-    #forward + backward + optimize
-    optimizer.zero_grad()
-    kld_loss, nll_loss, _, _ = model(data_all)
-    loss = kld_loss + nll_loss
-    loss.backward()
-    optimizer.step()
-
-    #grad norm clipping, only in pytorch version >= 1.10
-    nn.utils.clip_grad_norm(model.parameters(), clip)
-
-    train_loss += loss.data[0]
-
-    print('====> Epoch: {} Average loss: {:.4f}'.format(
-         epoch, train_loss / len(train_loader.dataset)))
-
-    return
-
 def train(epoch):
     train_loss = 0
     for batch_idx, data in enumerate(train_loader):
@@ -52,6 +32,38 @@ def train(epoch):
         #to remove eventually
         data = Variable(torch.unsqueeze(data['frame'],1)).float().cuda()
         data = (data - data.min().data[0]) / (data.max().data[0] - data.min().data[0])
+        print('data  ' + str(data.shape))
+
+        conv_1=torch.nn.Conv3d(1, conv_filters, 3).cuda()
+        max_pool1=torch.nn.MaxPool3d((2, 2, 1)).cuda()
+        conv_2=torch.nn.Conv3d(conv_filters, conv_filters * 4, (3,3,1)).cuda()
+        max_pool2= torch.nn.MaxPool3d((2, 2, 1)).cuda()
+        conv_3=torch.nn.Conv3d(conv_filters * 4, conv_filters * 8, (3,3,1)).cuda()
+        max_pool3=torch.nn.MaxPool3d((1, 2, 1)).cuda()
+        conv_4 =torch.nn.Conv3d(conv_filters * 8, conv_filters * 16, (3,3,1)).cuda()
+        max_pool4=torch.nn.MaxPool3d((2, 2, 1)).cuda()
+        conv_5 =torch.nn.Conv3d(conv_filters * 16, conv_filters * 32, (3,3,1)).cuda()
+        max_pool5=torch.nn.MaxPool3d((2, 2, 1)).cuda()
+        output=conv_1(data)
+        print('1_conv  ' + str(output.shape))
+        output=max_pool1(output)
+        print('max_poll2  ' + str(output.shape))
+        output=conv_2(output)
+        print('2_conv  ' + str(output.shape))
+        output=max_pool2(output)
+        print('max_poll2  ' + str(output.shape))
+        output=conv_3(output)
+        print('3_conv  ' + str(output.shape))
+        output=max_pool3(output)
+        print('max_poll3  ' + str(output.shape))
+        output=conv_4(output)
+        print('4_conv  ' + str(output.shape))
+        output=max_pool4(output)
+        print('max_poll4  ' + str(output.shape))
+        output=conv_5(output)
+        print('5_conv  ' + str(output.shape))
+        output=max_pool5(output)
+        print('max_poll5  ' + str(output.shape))
 
         #forward + backward + optimize
         optimizer.zero_grad()
@@ -62,12 +74,6 @@ def train(epoch):
 
         #grad norm clipping, only in pytorch version >= 1.10
         nn.utils.clip_grad_norm(model.parameters(), clip)
-
-        #sample = model.sample(batch_size, 14)
-        #print('sample')
-        #print(sample)
-        #plt.imshow(sample.numpy())
-        #plt.pause(1e-6)
 
         #printing
         if batch_idx % print_every == 0:
@@ -85,29 +91,6 @@ def train(epoch):
     return
 
 
-def init():
-    plot.set_data(data[0])
-    return [plot]
-
-
-def update(j):
-    plt.title(int(j/batch_size))
-    plot.set_data(data[j])
-    return [plot]
-
-def statistics_update(epoch):
-    # simulate new data coming in
-    #data = np.random.randn(1000)
-    n, bins = np.histogram(statistic_original[epoch], 100)
-    top = bottom + n
-    verts[1::5, 1] = top
-    verts[2::5, 1] = top
-
-    n1, bins1 = np.histogram(statistic_generated[epoch], 100)
-    top1 = bottom + n1
-    verts1[1::5, 1] = top1
-    verts1[2::5, 1] = top1
-    return [patch, patch1]
 
 
 # hyperparameters
@@ -129,6 +112,7 @@ batch_size = 120
 seed = 128
 print_every = 100
 save_every = 10
+conv_filters=30
 
 # manual seed
 torch.manual_seed(seed)
@@ -136,12 +120,12 @@ torch.manual_seed(seed)
 #plt.ion()
 
 basePath = os.path.dirname(os.path.abspath(__file__))
-face_dataset = FramesDataset_Mono(basePath + '/train/annotations_single_bubble.csv', basePath + '/train')
+face_dataset = FramesDataset_Conv3D(basePath + '/train/annotations_single_bubble.csv', basePath + '/train')
 train_loader = torch.utils.data.DataLoader(face_dataset, batch_size=batch_size)
 
 x_dim = face_dataset[0]['frame'].shape[0]
 
-model = VRNN(x_dim, h_dim, z_dim, n_layers)
+model = VRNN(x_dim, h_dim, z_dim, n_layers,conv_filters)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 #model.load_state_dict(torch.load('20_05.pth'))
 
@@ -179,72 +163,4 @@ fig = plt.figure()
 plot = plt.matshow(data[0], cmap='gray', fignum=0)
 anim = animation.FuncAnimation(fig, update, init_func=init, frames=batch_size*n_epochs*generate_epoch, interval=30,
                                          blit=True)
-plt.show()
-
-# show statictics
-
-# Fixing random state for reproducibility
-np.random.seed(19680801)
-
-# histogram our data with numpy
-data = statistic_generated[0]
-n, bins = np.histogram(data, 100)
-
-# get the corners of the rectangles for the histogram
-left = np.array(bins[:-1])
-right = np.array(bins[1:])
-bottom = np.zeros(len(left))
-top = bottom + n
-nrects = len(left)
-
-
-nverts = nrects * (1 + 3 + 1)
-verts = np.zeros((nverts, 2))
-codes = np.ones(nverts, int) * path.Path.LINETO
-codes[0::5] = path.Path.MOVETO
-codes[4::5] = path.Path.CLOSEPOLY
-verts[0::5, 0] = left
-verts[0::5, 1] = bottom
-verts[1::5, 0] = left
-verts[1::5, 1] = top
-verts[2::5, 0] = right
-verts[2::5, 1] = top
-verts[3::5, 0] = right
-verts[3::5, 1] = bottom
-
-nverts1 = nrects * (1 + 3 + 1)
-verts1 = np.zeros((nverts, 2))
-codes1 = np.ones(nverts, int) * path.Path.LINETO
-codes1[0::5] = path.Path.MOVETO
-codes1[4::5] = path.Path.CLOSEPOLY
-verts1[0::5, 0] = left
-verts1[0::5, 1] = bottom
-verts1[1::5, 0] = left
-verts1[1::5, 1] = top
-verts1[2::5, 0] = right
-verts1[2::5, 1] = top
-verts1[3::5, 0] = right
-verts1[3::5, 1] = bottom
-patch = None
-patch1 = None
-
-fig, ax = plt.subplots(nrows=1, ncols=2)
-barpath = path.Path(verts, codes)
-patch = patches.PathPatch(
-    barpath, facecolor='green', edgecolor='yellow', alpha=0.5)
-barpath1 = path.Path(verts1, codes1)
-patch1 = patches.PathPatch(
-    barpath1, facecolor='red', edgecolor='yellow', alpha=0.5)
-ax[0].add_patch(patch)
-
-ax[0].set_xlim(left[0], right[-1])
-ax[0].set_ylim(bottom.min(), top.max())
-ax[0].set_title('Original')
-ax[1].add_patch(patch1)
-
-ax[1].set_xlim(left[0], right[-1])
-ax[1].set_ylim(bottom.min(), top.max())
-ax[1].set_title('Generated')
-
-ani = animation.FuncAnimation(fig, statistics_update, n_epochs, repeat=True, blit=True, interval=300)
 plt.show()

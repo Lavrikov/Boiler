@@ -15,7 +15,7 @@ inference, prior, and generating models."""
 
 
 class VRNN(nn.Module):
-    def __init__(self, x_dim, h_dim, z_dim, n_layers, bias=False):
+    def __init__(self, x_dim, h_dim, z_dim, n_layers, conv_filters, bias=False):
         super(VRNN, self).__init__()
 
         self.x_dim = x_dim
@@ -25,9 +25,17 @@ class VRNN(nn.Module):
 
         #feature-extracting transformations
         self.phi_x = nn.Sequential(
-            nn.Linear(x_dim, h_dim),
-            nn.ReLU(),
-            nn.Linear(h_dim, h_dim),
+            torch.nn.Conv3d(1, conv_filters, 3),
+            torch.nn.MaxPool3d((2, 2, 1)),
+            torch.nn.Conv3d(conv_filters, conv_filters * 4, (3,3,1)),
+            torch.nn.MaxPool3d((2, 2, 1)),
+            torch.nn.Conv3d(conv_filters * 4, conv_filters * 8, (3,3,1)),
+            torch.nn.MaxPool3d((1, 2, 1)),
+            torch.nn.Conv3d(conv_filters * 8, conv_filters * 16, (3,3,1)),
+            torch.nn.MaxPool3d((2, 2, 1)),
+            torch.nn.Conv3d(conv_filters * 16, conv_filters * 32, (3,3,1)),
+            torch.nn.MaxPool3d((2, 2, 2)),
+            nn.Linear(960, h_dim),
             nn.ReLU()).cuda()
         self.phi_z = nn.Sequential(
             nn.Linear(z_dim, h_dim),
