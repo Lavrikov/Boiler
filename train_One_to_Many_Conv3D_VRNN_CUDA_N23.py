@@ -40,9 +40,8 @@ def train(epoch):
         #to remove eventually
         data = Variable(torch.unsqueeze(data['frame'],1)).float().cuda()
         data = (data - data.min().data[0]) / (data.max().data[0] - data.min().data[0])
-        print('data  ' + str(data.shape))
-
-
+        print('data' + str(data.shape))
+        # conv test
         conv_1=torch.nn.Conv3d(1, conv_filters, 3).cuda()
         max_pool1=torch.nn.MaxPool3d((2, 2, 1)).cuda()
         conv_2=torch.nn.Conv3d(conv_filters, conv_filters * 4, (3,3,1)).cuda()
@@ -52,7 +51,6 @@ def train(epoch):
         conv_4 =torch.nn.Conv3d(conv_filters * 8, conv_filters * 16, (3,3,1)).cuda()
         max_pool4=torch.nn.MaxPool3d((2, 2, 1)).cuda()
         conv_5 =torch.nn.Conv3d(conv_filters * 16, conv_filters * 32, (3,3,1)).cuda()
-        linear = nn.Linear(960, h_dim).cuda()
 
         output=conv_1(data)
         print('1_conv  ' + str(output.shape))
@@ -72,9 +70,46 @@ def train(epoch):
         print('max_poll4  ' + str(output.shape))
         output=conv_5(output)
         print('5_conv  ' + str(output.shape))
-        output=torch.squeeze(output)
-        output=linear(output)
-        print('linear  ' + str(output.shape))
+
+        # deconv test
+        unconv1=nn.ConvTranspose3d(in_channels=conv_filters * 32,out_channels=conv_filters * 16,kernel_size=(3,3,1)).cuda()
+        unconv2 = nn.ConvTranspose3d(in_channels=conv_filters * 16, out_channels=conv_filters * 16,
+                                     kernel_size=(4, 4, 1)).cuda()
+        unconv3 = nn.ConvTranspose3d(in_channels=conv_filters * 16, out_channels=conv_filters * 8,
+                                     kernel_size=(3, 3, 1)).cuda()
+        unconv4 = nn.ConvTranspose3d(in_channels=conv_filters * 8, out_channels=conv_filters * 8,
+                                     kernel_size=(1, 10, 1)).cuda()
+        unconv5 = nn.ConvTranspose3d(in_channels=conv_filters * 8, out_channels=conv_filters * 4,
+                                     kernel_size=(3, 3, 1)).cuda()
+        unconv6 = nn.ConvTranspose3d(in_channels=conv_filters * 4, out_channels=conv_filters * 4,
+                                     kernel_size=(12, 21, 1)).cuda()
+        unconv7 = nn.ConvTranspose3d(in_channels=conv_filters * 4, out_channels=conv_filters ,
+                                     kernel_size=(3, 3, 1)).cuda()
+        unconv8 = nn.ConvTranspose3d(in_channels=conv_filters, out_channels=conv_filters ,
+                                     kernel_size=(23, 43, 1)).cuda()
+        unconv9 = nn.ConvTranspose3d(in_channels=conv_filters, out_channels=1,
+                                     kernel_size=(4, 3, 3)).cuda()
+        output=unconv1(output)
+        print ('uncinv1' + str(output.shape))
+        output = unconv2(output)
+        print('uncinv2' + str(output.shape))
+        output = unconv3(output)
+        print('uncinv3' + str(output.shape))
+        output = unconv4(output)
+        print('uncinv4' + str(output.shape))
+        output = unconv5(output)
+        print('uncinv5' + str(output.shape))
+        output = unconv6(output)
+        print('uncinv6' + str(output.shape))
+        output = unconv7(output)
+        print('uncinv7' + str(output.shape))
+        output = unconv8(output)
+        print('uncinv8' + str(output.shape))
+        output = unconv9(output)
+        print('uncinv9' + str(output.shape))
+
+
+
         #forward + backward + optimize
         optimizer.zero_grad()
         kld_loss, nll_loss, _, _ = model(data)
@@ -112,17 +147,17 @@ if torch.cuda.is_available():
     print(torch.cuda.get_device_capability(0))
     print(torch.cuda.get_device_capability(1))
 
-h_dim = 960
+conv_filters=50
+h_dim = 32*conv_filters
 z_dim = 16
 n_layers = 1
 n_epochs = 1
 clip = 30
 learning_rate = 5e-4
-batch_size = 120
+batch_size = 40
 seed = 128
 print_every = 100
 save_every = 10
-conv_filters=30
 frame_x=85
 frame_y=48
 
@@ -139,12 +174,10 @@ x_dim = face_dataset[0]['frame'].shape[0]
 
 model = VRNN(x_dim, h_dim, z_dim, n_layers, conv_filters, frame_x, frame_y)
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-#model.load_state_dict(torch.load('20_05.pth'))
+#model.load_state_dict(torch.load('23_01.pth'))
 
 generate_epoch=1
-data = np.empty(batch_size*n_epochs*generate_epoch, dtype=object)
-statistic_generated = np.empty((n_epochs, batch_size*generate_epoch), dtype=float)
-statistic_original = np.empty((n_epochs, batch_size*generate_epoch), dtype=float)
+data = np.empty(3*batch_size*n_epochs*generate_epoch, dtype=object)
 
 for epoch in range(1, n_epochs + 1):
 
@@ -158,15 +191,15 @@ for epoch in range(1, n_epochs + 1):
         print('Saved model to '+fn)
 
     # save generated video to memory
-    output = model.sample2_reverse(batch_size*generate_epoch)
+    output = model.sample(batch_size*generate_epoch)
 
     # concatenate generated and original video
     for k in range(batch_size*generate_epoch):
-        generated = np.resize(output[k].cpu().numpy(),(48,85))
-        statistic_generated[epoch-1,k] = generated[10,50]
-        original = np.resize(train_loader.dataset[k+(epoch-1)*batch_size*generate_epoch]['frame'] / 255,(48,85))
-        statistic_original[epoch-1,k] = original[10,50]
-        data[k+batch_size*(epoch-1)] = np.vstack((generated / (np.max(generated) - np.min(generated)), original))
+        generated = output[k].cpu().numpy()
+        original = train_loader.dataset[k+(epoch-1)*batch_size*generate_epoch]['frame'] / 255
+        data[k*3 + batch_size * (epoch-1)] = np.vstack((generated / (np.max(generated) - np.min(generated)), original))[:,:,0]
+        data[k*3 + batch_size * (epoch - 1) + 1] = np.vstack((generated / (np.max(generated) - np.min(generated)), original))[:, :, 1]
+        data[k*3 + batch_size * (epoch - 1) + 2] = np.vstack((generated / (np.max(generated) - np.min(generated)), original))[:, :, 2]
 
 
 # show generated video

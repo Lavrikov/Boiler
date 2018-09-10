@@ -64,15 +64,22 @@ class VRNN(nn.Module):
         self.dec = nn.Sequential(
             nn.Linear(h_dim + h_dim, h_dim),
             nn.ReLU(),
-            nn.Linear(h_dim, frame_x*frame_y), #create the one dimensional tensor with lengh equal the frame size
+            nn.Linear(h_dim, h_dim), #create the one dimensional tensor with lengh equal the frame size
             nn.ReLU()).cuda()
         self.dec_std = nn.Sequential(
-            nn.Linear(frame_x*frame_y, x_dim),
+            nn.Linear(h_dim, x_dim),
             nn.Softplus()).cuda()
         #self.dec_mean = nn.Linear(h_dim, x_dim)
         self.dec_mean = nn.Sequential( #create 3 frame from 1
-            nn.Linear(1, 3),
-            nn.Sigmoid()).cuda()
+            nn.ConvTranspose3d(in_channels=conv_filters * 32, out_channels=conv_filters * 16, kernel_size=(3, 3, 1)),
+            nn.ConvTranspose3d(in_channels=conv_filters * 16, out_channels=conv_filters * 16, kernel_size=(4, 4, 1)),
+            nn.ConvTranspose3d(in_channels=conv_filters * 16, out_channels=conv_filters * 8,  kernel_size=(3, 3, 1)),
+            nn.ConvTranspose3d(in_channels=conv_filters * 8,  out_channels=conv_filters * 8,  kernel_size=(1, 10, 1)),
+            nn.ConvTranspose3d(in_channels=conv_filters * 8,  out_channels=conv_filters * 4,  kernel_size=(3, 3, 1)),
+            nn.ConvTranspose3d(in_channels=conv_filters * 4,  out_channels=conv_filters * 4,  kernel_size=(12, 21, 1)),
+            nn.ConvTranspose3d(in_channels=conv_filters * 4,  out_channels=conv_filters,      kernel_size=(3, 3, 1)),
+            nn.ConvTranspose3d(in_channels=conv_filters,      out_channels=conv_filters,      kernel_size=(23, 43, 1)),
+            nn.ConvTranspose3d(in_channels=conv_filters,      out_channels=1,                 kernel_size=(4, 3, 3))).cuda()
 
         #recurrence
         self.rnn = nn.GRU(h_dim + h_dim, h_dim, n_layers, bias).cuda()
@@ -129,79 +136,10 @@ class VRNN(nn.Module):
             (all_dec_mean, all_dec_std)
 
 
-    def sample(self, seq_len, batch_size):
 
-        sample = torch.zeros(seq_len,batch_size, self.x_dim).cuda()
-        h_by_row = Variable(torch.zeros(seq_len,self.n_layers, 1, self.h_dim)).cuda()
-        h = Variable(torch.zeros(self.n_layers, 1, self.h_dim)).cuda()
+    def sample(self, seq_len):
 
-        for t in range(batch_size-1,1,-1):#row number
-
-            for y in range(seq_len):# for video generation, frame number
-
-                h = h_by_row[y]
-
-                #prior eq.5 p(z)
-                prior_t = self.prior(h[-1])
-                prior_mean_t = self.prior_mean(prior_t)
-                prior_std_t = self.prior_std(prior_t)
-
-                #sampling and reparameterization
-                z_t = self._reparameterized_sample(prior_mean_t, prior_std_t)
-                phi_z_t = self.phi_z(z_t)
-
-                #decoder eq.6 p(x|z)
-                dec_t = self.dec(torch.cat([phi_z_t, h[-1]], 1))
-                dec_mean_t = self.dec_mean(dec_t)
-                #dec_std_t = self.dec_std(dec_t)
-
-                phi_x_t = self.phi_x(dec_mean_t)
-
-                #recurrence
-                _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
-
-                sample[y,t] = dec_mean_t.data
-
-                h_by_row[y] = h
-
-
-        return sample
-
-    def sample2(self, seq_len):
-
-        sample = torch.zeros(seq_len, self.x_dim).cuda()
-        h = Variable(torch.zeros(self.n_layers, 1, self.h_dim)).cuda()
-
-        for t in range(seq_len-1,1,-1):
-
-            #prior
-            prior_t = self.prior(h[-1])
-            prior_mean_t = self.prior_mean(prior_t)
-            prior_std_t = self.prior_std(prior_t)
-
-            #sampling and reparameterization
-            z_t = self._reparameterized_sample(prior_mean_t, prior_std_t)
-            phi_z_t = self.phi_z(z_t)
-
-            #decoder
-            dec_t = self.dec(torch.cat([phi_z_t, h[-1]], 1))
-            dec_mean_t = self.dec_mean(dec_t)
-            #dec_std_t = self.dec_std(dec_t)
-
-            phi_x_t = self.phi_x(dec_mean_t)
-
-            #recurrence
-            _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
-
-            sample[t] = dec_mean_t.data
-
-
-        return sample
-
-
-    def sample2_reverse(self, seq_len):
-
-        sample = torch.zeros(seq_len, self.x_dim).cuda()
+        sample = torch.zeros(seq_len, self.frame_y, self.frame_x, 3).cuda()
         h = Variable(torch.randn(self.n_layers, 1, self.h_dim)).cuda()
 
         for t in range(0,seq_len):
@@ -217,11 +155,10 @@ class VRNN(nn.Module):
 
             #decoder
             dec_t = self.dec(torch.cat([phi_z_t, h[-1]], 1))
-            dec_mean_t = self.dec_mean(dec_t)
+            dec_mean_t = torch.unsqueeze(self.dec_mean(dec_t.view(1,self.frame_y,self.frame_x,1)),0)
             #dec_std_t = self.dec_std(dec_t)
 
-            phi_x_t = self.phi_x(dec_mean_t)
-
+            phi_x_t = self.phi_x(dec_mean_t).squeeze().unsqueeze(0)
             #recurrence
             _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
 
@@ -230,107 +167,6 @@ class VRNN(nn.Module):
 
         return sample
 
-    def sample_reconstruction(self, Y_size, x, x_prior):
-        # there is the reconstruction a part of image
-        # x_prior number of prior rows
-        seq_len=x.size(1)
-        sample = torch.zeros(seq_len,Y_size, self.x_dim).cuda()
-
-        # first rows initialization
-        h_rec = Variable(torch.zeros(self.n_layers, seq_len, self.h_dim)).cuda()
-        for t in range(Y_size - 1, Y_size - x_prior - 1, -1):
-            phi_x_t = self.phi_x(x[t])
-
-            # encoder
-            enc_t = self.enc(torch.cat([phi_x_t, h_rec[-1]], 1))
-            enc_mean_t = self.enc_mean(enc_t)
-            enc_std_t = self.enc_std(enc_t)
-
-            # prior
-            prior_t = self.prior(h_rec[-1])
-            prior_mean_t = self.prior_mean(prior_t)
-            prior_std_t = self.prior_std(prior_t)
-
-            # sampling and reparameterization
-            z_t = self._reparameterized_sample(enc_mean_t, enc_std_t)
-            phi_z_t = self.phi_z(z_t)
-
-            # decoder
-            dec_t = self.dec(torch.cat([phi_z_t, h_rec[-1]], 1))
-            dec_mean_t = self.dec_mean(dec_t)
-            dec_std_t = self.dec_std(dec_t)
-
-            # recurrence
-            _, h_rec = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h_rec)
-            # sample[:, t] = dec_mean_t.data[:]
-            sample[:, t] = x.data[t,:]
-
-        h_by_frame = Variable(torch.zeros(seq_len, self.n_layers, 1, self.h_dim)).cuda()
-
-        h_by_frame[:,0,0]=h_rec[0,:] # initialization of the prior rows state
-
-        for t in range(Y_size-1-x_prior,1,-1):
-            # row numbers excluding prior rows
-
-            for i in range(seq_len):# for video generation, frame number
-
-                h = h_by_frame[i]
-
-                #prior
-                prior_t = self.prior(h[-1])
-                prior_mean_t = self.prior_mean(prior_t)
-                prior_std_t = self.prior_std(prior_t)
-
-                #sampling and reparameterization
-                z_t = self._reparameterized_sample(prior_mean_t, prior_std_t)
-                phi_z_t = self.phi_z(z_t)
-
-                #decoder
-                dec_t = self.dec(torch.cat([phi_z_t, h[-1]], 1))
-                dec_mean_t = self.dec_mean(dec_t)
-                #dec_std_t = self.dec_std(dec_t)
-
-                phi_x_t = self.phi_x(dec_mean_t)
-
-                #recurrence
-                _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
-
-                sample[i,t] = dec_mean_t.data
-
-                h_by_frame[i] = h
-
-
-        return sample
-
-    def sample3(self, seq_len, x_generated, mask):
-
-        sample = torch.zeros(seq_len, self.x_dim).cuda()
-        h = Variable(torch.randn(self.n_layers, 1, self.h_dim)).cuda()
-
-        for t in range(seq_len):
-
-            #prior
-            prior_t = self.prior(h[-1])
-            prior_mean_t = self.prior_mean(prior_t)
-            prior_std_t = self.prior_std(prior_t)
-
-            #sampling and reparameterization
-            z_t = self._reparameterized_sample(prior_mean_t, prior_std_t)
-            phi_z_t = self.phi_z(z_t)
-
-            #decoder
-            dec_t = self.dec(torch.cat([phi_z_t, h[-1]], 1))
-            dec_mean_t = self.dec_mean(dec_t)
-            #dec_std_t = self.dec_std(dec_t)
-            phi_x_t = self.phi_x(dec_mean_t*mask+x_generated[t])
-
-            #recurrence
-            _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
-
-            sample[t] = dec_mean_t.data
-
-
-        return sample
 
     def reset_parameters(self, stdv=1e-1):
         for weight in self.parameters():

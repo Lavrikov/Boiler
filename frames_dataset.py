@@ -205,7 +205,7 @@ class FramesDataset_Conv3D(Dataset):
         print(filepath)
         cap = cv2.VideoCapture(filepath)
         if cap.isOpened():
-            return int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            return int(cap.get(cv2.CAP_PROP_FRAME_COUNT)/3)
         else:
             return 0
 
