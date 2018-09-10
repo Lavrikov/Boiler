@@ -115,7 +115,7 @@ class VRNN(nn.Module):
 
             #decoder eq.6 p(x|z)
             dec_t = self.dec(torch.cat([phi_z_t, h[-1]], 1))
-            dec_mean_t = self.dec_mean(dec_t.view(1,self.frame_y,self.frame_x,1))
+            dec_mean_t = self.dec_mean(dec_t.unsqueeze(2).unsqueeze(2).unsqueeze(2))
             dec_std_t = self.dec_std(dec_t)
 
             #recurrence
@@ -125,7 +125,7 @@ class VRNN(nn.Module):
             kld_loss += self._kld_gauss(enc_mean_t, enc_std_t, prior_mean_t, prior_std_t)
             #nll_loss += self._nll_gauss(dec_mean_t, dec_std_t, x[t])
             nll_loss += self._nll_bernoulli(dec_mean_t, x[t])
-
+            print(nll_loss.data[0])
             all_enc_std.append(enc_std_t)
             all_enc_mean.append(enc_mean_t)
             all_dec_mean.append(dec_mean_t)

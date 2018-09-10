@@ -40,74 +40,6 @@ def train(epoch):
         #to remove eventually
         data = Variable(torch.unsqueeze(data['frame'],1)).float().cuda()
         data = (data - data.min().data[0]) / (data.max().data[0] - data.min().data[0])
-        print('data' + str(data.shape))
-        # conv test
-        conv_1=torch.nn.Conv3d(1, conv_filters, 3).cuda()
-        max_pool1=torch.nn.MaxPool3d((2, 2, 1)).cuda()
-        conv_2=torch.nn.Conv3d(conv_filters, conv_filters * 4, (3,3,1)).cuda()
-        max_pool2= torch.nn.MaxPool3d((2, 2, 1)).cuda()
-        conv_3=torch.nn.Conv3d(conv_filters * 4, conv_filters * 8, (3,3,1)).cuda()
-        max_pool3=torch.nn.MaxPool3d((1, 2, 1)).cuda()
-        conv_4 =torch.nn.Conv3d(conv_filters * 8, conv_filters * 16, (3,3,1)).cuda()
-        max_pool4=torch.nn.MaxPool3d((2, 2, 1)).cuda()
-        conv_5 =torch.nn.Conv3d(conv_filters * 16, conv_filters * 32, (3,3,1)).cuda()
-
-        output=conv_1(data)
-        print('1_conv  ' + str(output.shape))
-        output=max_pool1(output)
-        print('max_poll2  ' + str(output.shape))
-        output=conv_2(output)
-        print('2_conv  ' + str(output.shape))
-        output=max_pool2(output)
-        print('max_poll2  ' + str(output.shape))
-        output=conv_3(output)
-        print('3_conv  ' + str(output.shape))
-        output=max_pool3(output)
-        print('max_poll3  ' + str(output.shape))
-        output=conv_4(output)
-        print('4_conv  ' + str(output.shape))
-        output=max_pool4(output)
-        print('max_poll4  ' + str(output.shape))
-        output=conv_5(output)
-        print('5_conv  ' + str(output.shape))
-
-        # deconv test
-        unconv1=nn.ConvTranspose3d(in_channels=conv_filters * 32,out_channels=conv_filters * 16,kernel_size=(3,3,1)).cuda()
-        unconv2 = nn.ConvTranspose3d(in_channels=conv_filters * 16, out_channels=conv_filters * 16,
-                                     kernel_size=(4, 4, 1)).cuda()
-        unconv3 = nn.ConvTranspose3d(in_channels=conv_filters * 16, out_channels=conv_filters * 8,
-                                     kernel_size=(3, 3, 1)).cuda()
-        unconv4 = nn.ConvTranspose3d(in_channels=conv_filters * 8, out_channels=conv_filters * 8,
-                                     kernel_size=(1, 10, 1)).cuda()
-        unconv5 = nn.ConvTranspose3d(in_channels=conv_filters * 8, out_channels=conv_filters * 4,
-                                     kernel_size=(3, 3, 1)).cuda()
-        unconv6 = nn.ConvTranspose3d(in_channels=conv_filters * 4, out_channels=conv_filters * 4,
-                                     kernel_size=(12, 21, 1)).cuda()
-        unconv7 = nn.ConvTranspose3d(in_channels=conv_filters * 4, out_channels=conv_filters ,
-                                     kernel_size=(3, 3, 1)).cuda()
-        unconv8 = nn.ConvTranspose3d(in_channels=conv_filters, out_channels=conv_filters ,
-                                     kernel_size=(23, 43, 1)).cuda()
-        unconv9 = nn.ConvTranspose3d(in_channels=conv_filters, out_channels=1,
-                                     kernel_size=(4, 3, 3)).cuda()
-        output=unconv1(output)
-        print ('uncinv1' + str(output.shape))
-        output = unconv2(output)
-        print('uncinv2' + str(output.shape))
-        output = unconv3(output)
-        print('uncinv3' + str(output.shape))
-        output = unconv4(output)
-        print('uncinv4' + str(output.shape))
-        output = unconv5(output)
-        print('uncinv5' + str(output.shape))
-        output = unconv6(output)
-        print('uncinv6' + str(output.shape))
-        output = unconv7(output)
-        print('uncinv7' + str(output.shape))
-        output = unconv8(output)
-        print('uncinv8' + str(output.shape))
-        output = unconv9(output)
-        print('uncinv9' + str(output.shape))
-
 
 
         #forward + backward + optimize
@@ -147,14 +79,14 @@ if torch.cuda.is_available():
     print(torch.cuda.get_device_capability(0))
     print(torch.cuda.get_device_capability(1))
 
-conv_filters=50
+conv_filters=5
 h_dim = 32*conv_filters
 z_dim = 16
 n_layers = 1
 n_epochs = 1
-clip = 30
+clip = 3
 learning_rate = 5e-4
-batch_size = 40
+batch_size = 4
 seed = 128
 print_every = 100
 save_every = 10
