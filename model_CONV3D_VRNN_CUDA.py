@@ -72,14 +72,18 @@ class VRNN(nn.Module):
         #self.dec_mean = nn.Linear(h_dim, x_dim)
         self.dec_mean = nn.Sequential( #create 3 frame from 1
             nn.ConvTranspose3d(in_channels=conv_filters * 32, out_channels=conv_filters * 16, kernel_size=(3, 3, 1)),
+            nn.BatchNorm3d(conv_filters * 16),
             nn.ConvTranspose3d(in_channels=conv_filters * 16, out_channels=conv_filters * 16, kernel_size=(4, 4, 1)),
-            nn.ConvTranspose3d(in_channels=conv_filters * 16, out_channels=conv_filters * 8,  kernel_size=(3, 3, 1)),
-            nn.ConvTranspose3d(in_channels=conv_filters * 8,  out_channels=conv_filters * 8,  kernel_size=(1, 10, 1)),
-            nn.ConvTranspose3d(in_channels=conv_filters * 8,  out_channels=conv_filters * 4,  kernel_size=(3, 3, 1)),
-            nn.ConvTranspose3d(in_channels=conv_filters * 4,  out_channels=conv_filters * 4,  kernel_size=(12, 21, 1)),
-            nn.ConvTranspose3d(in_channels=conv_filters * 4,  out_channels=conv_filters,      kernel_size=(3, 3, 1)),
-            nn.ConvTranspose3d(in_channels=conv_filters,      out_channels=conv_filters,      kernel_size=(23, 43, 1)),
-            nn.ConvTranspose3d(in_channels=conv_filters,      out_channels=1,                 kernel_size=(4, 3, 3))).cuda()
+            nn.ConvTranspose3d(in_channels=conv_filters * 16, out_channels=conv_filters * 8, kernel_size=(3, 3, 1)),
+            nn.BatchNorm3d(conv_filters * 8),
+            nn.ConvTranspose3d(in_channels=conv_filters * 8, out_channels=conv_filters * 8, kernel_size=(1, 10, 1)),
+            nn.ConvTranspose3d(in_channels=conv_filters * 8, out_channels=conv_filters * 4, kernel_size=(3, 3, 1)),
+            nn.BatchNorm3d(conv_filters * 4),
+            nn.ConvTranspose3d(in_channels=conv_filters * 4, out_channels=conv_filters * 4, kernel_size=(12, 21, 1)),
+            nn.ConvTranspose3d(in_channels=conv_filters * 4, out_channels=conv_filters, kernel_size=(3, 3, 1)),
+            nn.ConvTranspose3d(in_channels=conv_filters, out_channels=conv_filters, kernel_size=(23, 43, 1)),
+            nn.ConvTranspose3d(in_channels=conv_filters, out_channels=1, kernel_size=(4, 3, 3)),
+            nn.BatchNorm3d(1),).cuda()
 
         #recurrence
         self.rnn = nn.GRU(h_dim + h_dim, h_dim, n_layers, bias).cuda()
@@ -193,7 +197,8 @@ class VRNN(nn.Module):
 
 
     def _nll_bernoulli(self, theta, x):
-        return - torch.sum(x*torch.log(theta) + (1-x)*torch.log(1-theta))
+
+        return  torch.sum((x-theta)**2)
 
 
     def _nll_gauss(self, mean, std, x):
