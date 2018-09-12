@@ -28,14 +28,19 @@ class VRNN(nn.Module):
         #feature-extracting transformations, h_dim must compare this output size to work correctly
         self.phi_x = nn.Sequential(
             nn.Conv3d(1, conv_filters, 3),
+            nn.ReLU(),
             nn.MaxPool3d((2, 2, 1)),
             nn.Conv3d(conv_filters, conv_filters * 4, (3,3,1)),
+            nn.ReLU(),
             nn.MaxPool3d((2, 2, 1)),
             nn.Conv3d(conv_filters * 4, conv_filters * 8, (3,3,1)),
+            nn.ReLU(),
             nn.MaxPool3d((1, 2, 1)),
             nn.Conv3d(conv_filters * 8, conv_filters * 16, (3,3,1)),
+            nn.ReLU(),
             nn.MaxPool3d((2, 2, 1)),
-            nn.Conv3d(conv_filters * 16, conv_filters * 32, (3,3,1))).cuda()
+            nn.Conv3d(conv_filters * 16, conv_filters * 32, (3,3,1)),
+            nn.ReLU()).cuda()
         self.phi_z = nn.Sequential(
             nn.Linear(z_dim, h_dim),
             nn.ReLU()).cuda()
@@ -72,14 +77,24 @@ class VRNN(nn.Module):
         #self.dec_mean = nn.Linear(h_dim, x_dim)
         self.dec_mean = nn.Sequential( #create 3 frame from 1
             nn.ConvTranspose3d(in_channels=conv_filters * 32, out_channels=conv_filters * 25, kernel_size=(5, 10, 1)),
+            nn.ReLU(),
             nn.ConvTranspose3d(in_channels=conv_filters * 25, out_channels=conv_filters * 16, kernel_size=(5, 10, 1)),
+            nn.ReLU(),
             nn.ConvTranspose3d(in_channels=conv_filters * 16, out_channels=conv_filters * 8, kernel_size=(5, 10, 1)),
+            nn.ReLU(),
             nn.ConvTranspose3d(in_channels=conv_filters * 8, out_channels=conv_filters * 4, kernel_size=(5, 10, 1)),
+            nn.ReLU(),
             nn.ConvTranspose3d(in_channels=conv_filters * 4, out_channels=conv_filters, kernel_size=(5, 10, 1)),
+            nn.ReLU(),
             nn.ConvTranspose3d(in_channels=conv_filters, out_channels=int(conv_filters/2), kernel_size=(6, 10, 1)),
+            nn.ReLU(),
             nn.ConvTranspose3d(in_channels=int(conv_filters/2), out_channels=int(conv_filters/4), kernel_size=(8, 10, 1)),
+            nn.ReLU(),
             nn.ConvTranspose3d(in_channels=int(conv_filters/4), out_channels=int(conv_filters/8), kernel_size=(9, 12, 1)),
-            nn.ConvTranspose3d(in_channels=int(conv_filters/8), out_channels=1, kernel_size=(8, 11, 3))).cuda()
+            nn.ReLU(),
+            nn.ConvTranspose3d(in_channels=int(conv_filters/8), out_channels=1, kernel_size=(8, 11, 3)),
+            nn.ReLU()).cuda()
+
 
         #recurrence
         self.rnn = nn.GRU(h_dim + h_dim, h_dim, n_layers, bias).cuda()
