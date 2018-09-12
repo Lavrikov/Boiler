@@ -95,7 +95,7 @@ class VRNN(nn.Module):
         all_dec_mean, all_dec_std = [], []
         kld_loss = 0
         nll_loss = 0
-
+        sample = torch.zeros(x.size(0), self.frame_y, self.frame_x, 3).cuda()
         phi = self.phi_x(x).squeeze().unsqueeze(1)# calculate conv for whole batch and conjugate dimesions with the h-variable
         h = Variable(torch.zeros(self.n_layers, x.size(1), self.h_dim)).cuda()
 
@@ -121,6 +121,7 @@ class VRNN(nn.Module):
             dec_t = self.dec(torch.cat([phi_z_t, h[-1]], 1))
             dec_mean_t = self.dec_mean(dec_t.unsqueeze(2).unsqueeze(2).unsqueeze(2))
             dec_std_t = self.dec_std(dec_t)
+            sample[t] = dec_mean_t.data
 
             #recurrence
             _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
@@ -129,13 +130,14 @@ class VRNN(nn.Module):
             kld_loss += self._kld_gauss(enc_mean_t, enc_std_t, prior_mean_t, prior_std_t)
             #nll_loss += self._nll_gauss(dec_mean_t, dec_std_t, x[t])
             nll_loss += self._nll_bernoulli(dec_mean_t, x[t])
-            print(nll_loss.data[0])
+
             all_enc_std.append(enc_std_t)
             all_enc_mean.append(enc_mean_t)
             all_dec_mean.append(dec_mean_t)
             all_dec_std.append(dec_std_t)
 
-        return kld_loss, nll_loss, \
+
+        return kld_loss, nll_loss, sample, \
             (all_enc_mean, all_enc_std), \
             (all_dec_mean, all_dec_std)
 
@@ -146,7 +148,7 @@ class VRNN(nn.Module):
         sample = torch.zeros(seq_len, self.frame_y, self.frame_x, 3).cuda()
         h = Variable(torch.randn(self.n_layers, 1, self.h_dim)).cuda()
 
-        for t in range(0,seq_len):
+        for t in range(seq_len - 1, 0, -1):
 
             #prior
             prior_t = self.prior(h[-1])
@@ -159,7 +161,7 @@ class VRNN(nn.Module):
 
             #decoder
             dec_t = self.dec(torch.cat([phi_z_t, h[-1]], 1))
-            dec_mean_t = torch.unsqueeze(self.dec_mean(dec_t.view(1,self.frame_y,self.frame_x,1)),0)
+            dec_mean_t = self.dec_mean(dec_t.unsqueeze(2).unsqueeze(2).unsqueeze(2))
             #dec_std_t = self.dec_std(dec_t)
 
             phi_x_t = self.phi_x(dec_mean_t).squeeze().unsqueeze(0)
