@@ -100,6 +100,7 @@ class VRNN(nn.Module):
         self.rnn = nn.GRU(h_dim + h_dim, h_dim, n_layers, bias).cuda()
 
 
+
     def forward(self, x):
 
         all_enc_mean, all_enc_std = [], []
