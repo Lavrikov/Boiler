@@ -37,9 +37,8 @@ def init_weights(m):
     if type(m) == nn.ConvTranspose3d:
         torch.nn.init.xavier_uniform(m.weight)
 
-def train(epoch):
+def train(epoch, data_frame):
 
-    data_frame = np.empty(batch_number*3 * batch_size  * generate_epoch, dtype=object)
 
     train_loss = 0
     for batch_idx, data in enumerate(train_loader):
@@ -52,7 +51,7 @@ def train(epoch):
         optimizer.zero_grad()
         kld_loss, nll_loss, output,_, _ = model(data)
         loss = kld_loss + nll_loss
-        loss.backward()
+        #loss.backward()
         optimizer.step()
 
         #grad norm clipping, only in pytorch version >= 1.10
@@ -97,11 +96,11 @@ if torch.cuda.is_available():
     print(torch.cuda.get_device_capability(0))
     print(torch.cuda.get_device_capability(1))
 
-conv_filters=15
+conv_filters=10
 h_dim = 32*conv_filters
 z_dim = 16
 n_layers = 1
-n_epochs = 5
+n_epochs = 1
 clip = 3
 learning_rate = 1e-3
 batch_size = 40
@@ -110,7 +109,7 @@ print_every = 100
 save_every = 10
 frame_x=85
 frame_y=48
-batch_number=500
+batch_number=100 #500
 
 # manual seed
 torch.manual_seed(seed)
@@ -118,7 +117,7 @@ torch.manual_seed(seed)
 #plt.ion()
 
 basePath = os.path.dirname(os.path.abspath(__file__))
-face_dataset = FramesDataset_Conv3D(basePath + '/train/annotations_single_bubble.csv', basePath + '/train')
+face_dataset = FramesDataset_Conv3D(basePath + '/train/annotations_single_bubble_validation.csv', basePath + '/train')
 train_loader = torch.utils.data.DataLoader(face_dataset, batch_size=batch_size)
 
 x_dim = face_dataset[0]['frame'].shape[0]
@@ -127,15 +126,15 @@ model = VRNN(x_dim, h_dim, z_dim, n_layers, conv_filters, frame_x, frame_y)
 model.apply(init_weights)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-#model.load_state_dict(torch.load('23_03.pth'))
+model.load_state_dict(torch.load('23_09_41.pth'))
 
-generate_epoch=1
-data = np.empty(batch_number*3*batch_size*n_epochs*generate_epoch, dtype=object)
+generate_epoch=10
+data = np.empty(batch_number*3*batch_size*generate_epoch, dtype=object)
 
 for epoch in range(1, n_epochs + 1):
 
     # training + testing
-    data=train(epoch)
+    data=train(epoch,data)
 
     # saving model
     if epoch % save_every == 1:
@@ -143,32 +142,33 @@ for epoch in range(1, n_epochs + 1):
         torch.save(model.state_dict(), fn)
         print('Saved model to '+fn)
 
-    # show generated video
-    print('show generated video')
-    fig = plt.figure()
-    plot = plt.matshow(data[0], cmap='gray', fignum=0)
-    anim = animation.FuncAnimation(fig, update, init_func=init, frames=batch_number*batch_size,
+
+# show generated video
+print('show generated video')
+fig = plt.figure()
+plot = plt.matshow(data[0], cmap='gray', fignum=0)
+anim = animation.FuncAnimation(fig, update, init_func=init, frames=batch_number*batch_size,
                                    interval=30,
                                    blit=True)
-    plt.show()
+plt.show()
 
-    # save generated video to memory
-    output = model.sample(batch_size*generate_epoch)
+# save generated video to memory
+output = model.sample(batch_size*generate_epoch)
 
-    # concatenate generated and original video
-    for k in range(batch_size*generate_epoch):
-        generated = output[k].cpu().numpy()
-        original = train_loader.dataset[k+(epoch-1)*batch_size*generate_epoch]['frame'] / 255
-        data[k*3 + batch_size * (epoch-1)] = np.vstack((generated / (np.max(generated) - np.min(generated)), original))[:,:,0]
-        data[k*3 + batch_size * (epoch - 1) + 1] = np.vstack((generated / (np.max(generated) - np.min(generated)), original))[:, :, 1]
-        data[k*3 + batch_size * (epoch - 1) + 2] = np.vstack((generated / (np.max(generated) - np.min(generated)), original))[:, :, 2]
+# concatenate generated and original video
+for k in range(batch_size*generate_epoch):
+    generated = output[k].cpu().numpy()
+    original = train_loader.dataset[k+(epoch-1)*batch_size*generate_epoch]['frame'] / 255
+    data[k*3 + batch_size * (epoch-1)] = np.vstack((generated / (np.max(generated) - np.min(generated)), original))[:,:,0]
+    data[k*3 + batch_size * (epoch - 1) + 1] = np.vstack((generated / (np.max(generated) - np.min(generated)), original))[:, :, 1]
+    data[k*3 + batch_size * (epoch - 1) + 2] = np.vstack((generated / (np.max(generated) - np.min(generated)), original))[:, :, 2]
 
 
-    # show generated video
-    print('show generated video')
-    fig = plt.figure()
-    plot = plt.matshow(data[0], cmap='gray', fignum=0)
-    anim = animation.FuncAnimation(fig, update, init_func=init, frames=batch_number*batch_size,
+# show generated video
+print('show generated video')
+fig = plt.figure()
+plot = plt.matshow(data[0], cmap='gray', fignum=0)
+anim = animation.FuncAnimation(fig, update, init_func=init, frames=batch_number*batch_size,
                                    interval=30,
                                    blit=True)
-    plt.show()
+plt.show()

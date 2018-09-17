@@ -110,10 +110,8 @@ class VRNN(nn.Module):
         sample = torch.zeros(x.size(0), self.frame_y, self.frame_x, 3).cuda()
         phi = self.phi_x(x).squeeze().unsqueeze(1)# calculate conv for whole batch and conjugate dimesions with the h-variable
         h = Variable(torch.zeros(self.n_layers, x.size(1), self.h_dim)).cuda()
-
+        phi_x_t = phi[x.size(0)-1]
         for t in range(x.size(0)-1,0,-1):
-
-            phi_x_t = phi[t]
 
             #encoder eq.9 p(z|x)
             enc_t = self.enc(torch.cat([phi_x_t, h[-1]], 1))
@@ -134,6 +132,8 @@ class VRNN(nn.Module):
             dec_mean_t = self.dec_mean(dec_t.unsqueeze(2).unsqueeze(2).unsqueeze(2))
             dec_std_t = self.dec_std(dec_t)
             sample[t] = dec_mean_t.data
+            phi_x_t = self.phi_x(dec_mean_t).squeeze().unsqueeze(0)
+
 
             #recurrence
             _, h = self.rnn(torch.cat([phi_x_t, phi_z_t], 1).unsqueeze(0), h)
@@ -195,7 +195,7 @@ class VRNN(nn.Module):
         pass
 
 
-    def _reparameterized_sample(self, mean, std):# an arbitrary source
+    def _reparameterized_sample(self, mean, std):# the random source
         """"using std to sample"""
         eps = torch.FloatTensor(std.size()).normal_().cuda()
         eps = Variable(eps)
