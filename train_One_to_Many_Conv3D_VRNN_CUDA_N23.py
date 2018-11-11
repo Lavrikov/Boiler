@@ -11,6 +11,7 @@ import os
 from frames_dataset import FramesDataset_Conv3D
 from matplotlib import animation
 import numpy as np
+import visualize
 
 
 import matplotlib.pyplot as plt
@@ -136,6 +137,7 @@ for epoch in range(1, n_epochs + 1):
     # training + testing
     data=train(epoch,data)
 
+    visualize.show_weights3d(model.phi_x.state_dict()['0.weight'])
     # saving model
     #if epoch % save_every == 1:
     #    fn = 'vrnn_state_dict_'+str(epoch)+'.pth'

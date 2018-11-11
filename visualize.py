@@ -27,6 +27,25 @@ def show_weights(weights):
         plt.clf()
 
 
+def show_weights3d(weights):
+
+    number_of_features=weights.shape[0]
+    number_of_windows=math.floor(number_of_features/36)
+
+    for j in range(0,number_of_features):
+        # here i show feature_map
+        # here i show results
+        ax = plt.subplot(6, 6, j + 1)  # coordinates
+        plt.tight_layout()
+        ax.set_title(j)
+        ax.axis('off')
+        # print(SummResult)
+        # show the statistic matrix
+        plt.imshow(torch.cat((weights[j][0][:][:][0],weights[j][0][:][:][1],weights[j][0][:][:][2]),1), 'gray')
+
+    plt.show()
+    plt.clf()
+
 def show_frame(frame, heat_transfer):
     plt.imshow(frame,'gray')
 

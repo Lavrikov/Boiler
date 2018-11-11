@@ -249,6 +249,8 @@ class FramesDataset_Conv3D(Dataset):
                     self.videos_cache[filename][i] = np.dstack ((self.videos_cache[filename][i],picture_transformation.resizeX(frame[:, :, 0])))  # -11:-1 desrease the vertical size of the image by cut it, decreze horizontal size by resizing
 
                 i += 1
+
+
             cap.release()
 
         frame = self.videos_cache[filename][frame_index]
