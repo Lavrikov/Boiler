@@ -73,11 +73,14 @@ model.load_state_dict(torch.load('23_10_101.pth'))
 
 
 #looking for 1 layer weights
-visualize.show_weights3d(model.phi_x.state_dict()['0.weight'])
+visualize.show_weights3d(torch.floor(model.phi_x.state_dict()['0.weight']+1)*model.phi_x.state_dict()['0.weight'])
 
-#looking for weights results
+#repeat convolutional structure of model
 conv1=nn.Conv3d(1, conv_filters, 3).cuda()
-nn.ReLU()
+relu=nn.ReLU()
+conv2=nn.Conv3d(conv_filters, conv_filters * 4, (3, 3, 1)).cuda()
+maxpool1=nn.MaxPool3d((2, 2, 1)).cuda()
+
 #load weight of first layer to temporary layer
 pretrained_dict=model.phi_x.state_dict()
 convstate=conv1.state_dict()
@@ -85,24 +88,74 @@ convstate['weight']=model.phi_x.state_dict()['0.weight']
 convstate['bias']=model.phi_x.state_dict()['0.bias']
 conv1.load_state_dict(convstate)
 
+convstate=conv2.state_dict()
+convstate['weight']=model.phi_x.state_dict()['3.weight']
+convstate['bias']=model.phi_x.state_dict()['3.bias']
+conv2.load_state_dict(convstate)
+print(conv2.weight)
+
 for batch_idx, data in enumerate(train_loader):
     data = Variable(torch.unsqueeze(data['frame'], 1)).float().cuda()
     data = (data - data.min().data[0]) / (data.max().data[0] - data.min().data[0])
     output=conv1(data)
-
-    print(output[0,0,:,:,0])
+    output=relu(output)
+    plt.clf()
+    #show results of 3dconv 1 layer
     for i in range(0, 10):
         # here i show results
-        ax = plt.subplot(3, 4, i + 1)  # coordinates
+        ax = plt.subplot(4, 4, i + 1)  # coordinates
         plt.tight_layout()
         ax.set_title(i)
         ax.axis('off')
         # print(SummResult)
         # show the statistic matrix
         plt.imshow(output.data[0,i,:,:,0].cpu().numpy(), 'gray')
+    #show initial pictures
+    for i in range(10, 13):
+        # here i show results
+        ax = plt.subplot(4, 4, i + 1)  # coordinates
+        plt.tight_layout()
+        ax.set_title(i)
+        ax.axis('off')
+        # print(SummResult)
+        # show the statistic matrix
+        plt.imshow(data.data[0,0,:,:,i-10].cpu().numpy(), 'gray')
+
+    plt.show()
+
+    print(output.shape)
+    output=maxpool1(output)
+    output=conv2(output)
+    output=relu(output)
+    print(output.shape)
+
+    plt.clf()
+    #show results of 3dconv 1 layer
+    for i in range(0, 10):
+        # here i show results
+        ax = plt.subplot(4, 4, i + 1)  # coordinates
+        plt.tight_layout()
+        ax.set_title(i)
+        ax.axis('off')
+        # print(SummResult)
+        # show the statistic matrix
+        plt.imshow(output.data[0,i*4,:,:,0].cpu().numpy(), 'gray')
+
+    #show initial pictures
+    for i in range(10, 13):
+        # here i show results
+        ax = plt.subplot(4, 4, i + 1)  # coordinates
+        plt.tight_layout()
+        ax.set_title(i)
+        ax.axis('off')
+        # print(SummResult)
+        # show the statistic matrix
+        plt.imshow(data.data[0,0,:,:,i-10].cpu().numpy(), 'gray')
 
     plt.show()
     plt.clf()
+
+
 
 
 
