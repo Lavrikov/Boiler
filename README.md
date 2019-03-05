@@ -20,7 +20,7 @@ Thus, the probability of rising the volume fraction for each pixel in front of t
 
 Fig.1. Imagination of probability function of getting area dark. 40kW/m2
 
-Secondly, consider the boiling under 80 kW/m2 with same other conditions. In that case a lot of bubbles are rising simultaneously. If the number of presented bubbles enough for handle particular heat load, there are no reasons to appear a new bubble at the moment. Thus, the probability of becoming dark for the light pixels will be low for area nearby heater surface (fig.2b). For the other hand, the light pixel will be painted to dark with high probability if it located on the front of rising bubbles (fig.2a). 
+Secondly, consider the boiling under 80 kW/m2 with same other conditions. In that case a lot of bubbles are rising simultaneously. If the number of presented bubbles enough for handle particular heat load, there are no reasons to appear a new bubble at the moment. Thus, the probability of becoming dark for the light pixels will be low for the area nearby heater surface (fig.2b). For the other hand, the light pixel will be painted to dark with high probability if it located on the front of rising bubbles (fig.2a). 
 
 ![Probability equation](https://github.com/rumbok/Boiler/blob/master/pictures/many_bubble_Pr.png?raw=true)
 
