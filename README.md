@@ -1,7 +1,7 @@
 # Boiler
 Scientific project
 ----------------------
-In very first work we select vapour quality for searching of appropriate probabilty equation. The reason is following, vapour quality easy to observe with optical methods and bubbles quite descriptive to understand variotional approach.  In fact, we are searching for complex function describing probability \{0;1\} of volume fraction for each point of water tank. In particular, there is a conditional probability for each pixel of image in case of known state of all pixles at previous moment of time
+At this very first work we select vapor quality for searching of appropriate probability equation. The reason is following, vapor quality easy to observe with optical methods and bubbles quite descriptive to understand variational approach.  In fact, we are searching for complex function describing probability \{0;1\} of volume fraction for each point of water tank. In particular, there is a conditional probability for each pixel of image in case of known state of all pixels at previous moment of time
  \begin{equation}\label{eq:conditional_p}
 x_{t} = Pr( x_{t} \mid  x_{<t},z_{<t}),
 \end{equation}
