@@ -31,3 +31,5 @@ Distribution of vapor quality for an arbitrary pixel has two maximums near zero 
 ![Probability equation](https://github.com/rumbok/Boiler/blob/master/pictures/Distribution.png?raw=true)
 
 Fig.3. Distribution of an arbitrary pixel bright on screen. Original vs Model
+
+Currently, we are comparing different computer vision neural networks architectures with purpose of prediction a local parameters behaviour.
