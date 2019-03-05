@@ -13,7 +13,7 @@ At this very first work we have selected vapor quality for searching of appropri
 
   where x pixel value for every image part, t -time, z- number of random variables with the normal distribution. The bright value of each pixel x is derived of particular liquid volume fraction attributed as 0 in case of 100% vapor or 1 in case of 100% liquid. 
   
-For better understanding of variational approach look at some extreme cases. Firstly, we have some heat load (for example 40 kW/m2, 1 bar, water). This is regime with the mostly pulsating nucleation sites. Sometimes the observing region does not have vapor bubbles at all.
+For better understanding of variational approach we should look at some extreme cases. Firstly, we have some heat load (for example 40 kW/m2, 1 bar, water). This is regime with the mostly pulsating nucleation sites. Sometimes the observing region does not have vapor bubbles at all.
 Thus, the probability of rising the volume fraction for each pixel in front of the heater must be maximal (fig.1a). On the contrary, such probability for the remote pixels will be minimal (fig.1b). 
 
 ![Probability distribution no bubbles](https://github.com/rumbok/Boiler/blob/master/pictures/no_bubble_Pr.png?raw=true)
