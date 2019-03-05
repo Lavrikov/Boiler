@@ -5,7 +5,7 @@ The relevance of the neural network application for the pool boiling analysis is
 
 It is known, that the boiling of liquid is one of sophisticated processes in universe. The heat transfer process delivers an energy from a hot solid surface to a cold liquid. Boiling is attractable approach of heat transfer due to hight heat transfer coefficient. This is signify that boiling based devices are lighter and smaller then the others more than ten times.
 
-It haves a good chances that this process has chaotic nature. That is why variational approach can be more appropriate than direct numerical simulations or empirical equations.
+It has a good chances that this process has chaotic nature. That is why variational approach can be more appropriate than direct numerical simulations or empirical equations.
 
 At this very first work we have selected vapor quality for searching of appropriate probability equation. The reason is following, the vapor quality is easy to observe with optical methods and bubbles quite descriptive for understanding a variational approach.  In fact, we are searching for complex function describing probability {0;1} of volume fraction for each point of water tank. In particular, there is a conditional probability for each pixel of image in case of known state of all pixels at previous moments of time
 
