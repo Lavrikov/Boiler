@@ -1,8 +1,8 @@
 # Boiler
+Abstract: The relevance of the neural network application for the pool boiling analysis is investigating. Machine learning methods are used for searching the hidden dependences between local and average parameters. The vapor quality used as a local parameter as far as the heating electrical current and temperature as the average ones.
+
 Scientific project
 ----------------------
-The relevance of the neural network application for the pool boiling analysis is investigating. Machine learning methods are used for searching the hidden dependences between local and average parameters. The vapor quality used as a local parameter as far as the heating electrical current and temperature as the average ones.
-
 It is known, that the boiling of liquid is one of sophisticated processes in universe. The heat transfer process delivers an energy from a hot solid surface to a cold liquid. Boiling is attractable approach of heat transfer due to hight heat transfer coefficient. This is signify that boiling based devices are lighter and smaller then the others more than ten times.
   
 For better understanding of variational approach we should look at some extreme cases. Firstly, we have some heat load (for example 40 kW/m2, 1 bar, water). This is regime with the mostly pulsating nucleation sites. Sometimes the observing region does not have vapor bubbles at all.
