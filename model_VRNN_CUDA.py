@@ -348,7 +348,8 @@ class VRNN(nn.Module):
 
 
     def _nll_bernoulli(self, theta, x):
-        return - torch.sum(x*torch.log(theta) + (1-x)*torch.log(1-theta))
+        #- torch.sum(x * torch.log(theta) + (1 - x) * torch.log(1 - theta))
+        return torch.sum((x-theta)**2)
 
 
     def _nll_gauss(self, mean, std, x):
